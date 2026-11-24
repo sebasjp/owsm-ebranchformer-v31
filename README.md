@@ -21,24 +21,7 @@ Proyecto final — Procesamiento de Datos Secuenciales
 
 ## 1. Resumen
 
-Este trabajo estudia e implementa la inferencia de OWSM v3.1 [1], un modelo
-abierto de voz a texto al estilo de Whisper [2] que combina un encoder
-E-Branchformer [4] con un decoder Transformer. Usamos el modelo base (101M
-parámetros) con los pesos publicados por los autores y el *toolkit* ESPnet [5],
-sin entrenar ni ajustar el modelo. Sobre él construimos una aplicación
-interactiva que graba o recibe un audio, lo transcribe o lo traduce según el
-idioma y la tarea indicados en el *prompt*, y muestra los pesos de la
-*cross-attention* del decoder (6 capas × 6 cabezas), es decir, a qué instantes
-del audio mira el modelo para escribir cada token. En el marco teórico se
-explica el recorrido completo del audio al texto: el espectrograma log-Mel, el
-encoder con sus ramas global y local, la creación de los tensores Q, K y V, el
-formato multitarea con tokens especiales y la decodificación con *beam search*.
-La aplicación funciona de extremo a extremo en CPU: en nuestra prueba, una
-frase de 3.7 s en español se transcribió correctamente en 21 s, incluyendo
-el *beam search* y la extracción de la atención. Según las métricas
-publicadas, el modelo base es el más rápido de su familia y supera en promedio
-a Whisper base en reconocimiento en inglés, pero es débil en identificación de
-idioma, traducción y audio largo, limitaciones que analizamos en la sección 6.
+> _Pendiente: se escribe al final, cuando estén los resultados._
 
 ---
 
