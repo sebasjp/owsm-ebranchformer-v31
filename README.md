@@ -21,7 +21,24 @@ Proyecto final — Procesamiento de Datos Secuenciales
 
 ## 1. Resumen
 
-> _Pendiente: se escribe al final, cuando estén los resultados._
+Este trabajo estudia e implementa la inferencia de OWSM v3.1 [1], un modelo
+abierto de voz a texto al estilo de Whisper [2] que combina un encoder
+E-Branchformer [4] con un decoder Transformer. Usamos el modelo base (101M
+parámetros) con los pesos publicados por los autores y el *toolkit* ESPnet [5],
+sin entrenar ni ajustar el modelo. Sobre él construimos una aplicación
+interactiva que graba o recibe un audio, lo transcribe o lo traduce según el
+idioma y la tarea indicados en el *prompt*, y muestra los pesos de la
+*cross-attention* del decoder (6 capas × 6 cabezas), es decir, a qué instantes
+del audio mira el modelo para escribir cada token. En el marco teórico se
+explica el recorrido completo del audio al texto: el espectrograma log-Mel, el
+encoder con sus ramas global y local, la creación de los tensores Q, K y V, el
+formato multitarea con tokens especiales y la decodificación con *beam search*.
+La aplicación funciona de extremo a extremo en CPU: en nuestra prueba, una
+frase de 3.7 s en español se transcribió correctamente en 21 s, incluyendo
+el *beam search* y la extracción de la atención. Según las métricas
+publicadas, el modelo base es el más rápido de su familia y supera en promedio
+a Whisper base en reconocimiento en inglés, pero es débil en identificación de
+idioma, traducción y audio largo, limitaciones que analizamos en la sección 6.
 
 ---
 
@@ -447,6 +464,324 @@ en la configuración publicada del modelo). En la retropropagación, los gradien
 de ambas pérdidas se suman en el encoder compartido: así, CTC organiza el
 encoder y el decoder se beneficia al consultar un H mejor alineado. Según los
 autores, esta pérdida conjunta ayuda a estabilizar y acelerar la convergencia [3].
+
+### 3.7 Decoder Transformer
+
+El decoder es la parte del modelo que **escribe**. El cambio principal de
+OWSM v3.1 está en el encoder; el decoder sigue siendo un Transformer estándar,
+del mismo tipo que el de OWSM v3 y Whisper, aunque con menos capas que el de
+OWSM v3 (en el tamaño medium, 18 frente a 24) [1]. Funciona como un **modelo de lenguaje condicionado al audio** [2]: predice
+el siguiente token a partir de los tokens que ya escribió y de la memoria
+acústica H. Recibe dos entradas: los tokens generados hasta el momento (al
+inicio, solo el *prompt* de control, sección 3.8) y H (749 × 384), que viene del
+encoder y no cambia durante toda la generación. En el modelo base tiene 6 capas
+iguales, de dimensión 384 y con 6 cabezas de atención [1].
+
+```mermaid
+flowchart TD
+    Y["Tokens previos<br/>sos · spa · asr · notimestamps · …<br/>L tokens"] --> EMB["Embedding<br/>50002 → 384"]
+    EMB --> PE["+ Codificación posicional<br/>L × 384"]
+    PE --> LN1["LayerNorm"]
+    LN1 --> SA["Self-attention enmascarada<br/>Q, K, V del texto · 6 cabezas"]
+    SA --> S1(("+"))
+    PE --> S1
+    S1 --> LN2["LayerNorm"]
+    LN2 --> CA["Cross-attention<br/>Q del texto · K, V de H · 6 cabezas"]
+    H["H<br/>749 × 384"] -- "K, V" --> CA
+    CA --> S2(("+"))
+    S1 --> S2
+    S2 --> LN3["LayerNorm"]
+    LN3 --> FFN["FFN<br/>384 → 1536 → 384"]
+    FFN --> S3(("+"))
+    S2 --> S3
+    S3 -- "× 6 capas" --> LNF["LayerNorm final"]
+    LNF --> OUT["Linear 384 → 50002<br/>+ softmax"]
+    OUT --> P["Probabilidad del<br/>siguiente token"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef encoder fill:#FDE2C3,stroke:#D49A5A,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef ffn fill:#C7E8F5,stroke:#6A9BC3,color:#333
+    classDef norma fill:#F3F3C1,stroke:#B8B86A,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    classDef cruce fill:#FDE2C3,stroke:#D49A5A,stroke-width:3px,color:#333
+    class Y entrada
+    class EMB,PE decoder
+    class SA encoder
+    class CA cruce
+    class H,S1,S2,S3 memoria
+    class FFN ffn
+    class LN1,LN2,LN3,LNF norma
+    class OUT,P salida
+```
+
+1. **Embedding.** Cada token es un número entero (su ID). El embedding es una
+   tabla aprendida de 50 002 × 384: convertir un token en vector es simplemente
+   tomar la fila correspondiente. Por ejemplo, el *prompt* `[49999, 121, 155, 181]`
+   se convierte en una matriz de 4 × 384. Así el texto queda con la misma
+   dimensión que H, y el decoder puede compararlos.
+
+2. **Codificación posicional.** Igual que en el encoder (sección 3.4), la
+   atención no conoce el orden de los tokens, así que a cada vector se le suma
+   la codificación posicional sinusoidal de su posición (implementación del
+   decoder en ESPnet [5]). Whisper, en cambio, usa posiciones aprendidas en el decoder [2].
+
+3. **Self-attention enmascarada.** Llamemos S a los vectores del texto
+   (L × 384, con L el número de tokens). Las *queries*, *keys* y *values* se
+   generan **del mismo texto**, con la misma fórmula de la sección 3.5, pero con
+   una máscara causal M que se suma antes del softmax:
+
+   $$\text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}$$
+
+   donde Q = SW<sub>Q</sub>, K = SW<sub>K</sub> y V = SW<sub>V</sub>. Como
+   e<sup>−∞</sup> = 0, el token *i* solo puede mirar los tokens 1 a *i*: nunca
+   el futuro. El mapa de atención es de L × L. Esta capa le dice a cada token
+   **qué se ha escrito antes**: el contexto del lenguaje (después de "cómo" es
+   probable "está").
+
+4. **Cross-attention.** Es el **único punto donde el texto consulta el audio**.
+   Las *queries* salen del texto y las *keys* y *values* salen de H:
+
+   $$Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)$$
+
+   $$A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749), \qquad \text{salida} = AV \;\; (L \times 384)$$
+
+   donde S son los estados del decoder después de la *self-attention*. Cada
+   token pregunta (Q): "según lo que llevo escrito, ¿qué parte del audio necesito
+   para el siguiente?". Cada frame de 40 ms responde con su clave (K), y el
+   resultado mezcla la información acústica (V) de los frames elegidos. La fila
+   *i* de A es una distribución sobre los 749 frames: una **alineación suave**
+   entre texto y audio, que se calcula de nuevo en cada paso y no lleva máscara.
+   H es la misma en las 6 capas, pero cada capa y cada cabeza (d<sub>k</sub> =
+   64) tienen sus propias W<sub>Q</sub>, W<sub>K</sub> y W<sub>V</sub>, así que
+   cada una consulta el audio de forma distinta. Estos 6 × 6 mapas son los que
+   visualiza nuestra aplicación (sección 5.7).
+
+5. **FFN.** Dos capas lineales con una activación en medio, aplicadas a cada
+   token por separado: 384 → 1536 → 384 (configuración publicada del modelo),
+   con activación ReLU (implementación de ESPnet [5]). Las atenciones **mezclan** información entre posiciones; la FFN
+   **procesa** lo que cada token recibió del texto y del audio. A diferencia del
+   encoder, es una FFN completa y no dos medias.
+
+6. **Normalización y conexiones residuales.** Como en el encoder, cada
+   subcapa se normaliza antes de aplicarse (*pre-LN*, implementación de ESPnet
+   [5]) y su salida se suma a su entrada: hay 3 conexiones residuales por capa, una por subcapa.
+
+7. **Capa de salida.** Después de las 6 capas y una LayerNorm final, una capa
+   lineal convierte el vector de cada token en 50 002 puntajes (*logits*), uno
+   por token del vocabulario, y un softmax los vuelve probabilidades. Durante la
+   generación solo se usa la última fila: la probabilidad del **siguiente**
+   token. En OWSM esta capa no comparte pesos con el embedding de entrada [3];
+   en Whisper sí [2].
+
+En el entrenamiento, el decoder recibe la transcripción correcta completa y
+predice todas las posiciones a la vez (*teacher forcing*). Su pérdida es la
+entropía cruzada entre la predicción y el token correcto en cada posición:
+
+$$P(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid y_{<i},\, H\right), \qquad \mathcal{L}_{att} = -\sum_{i=1}^{N} \log p\left(y_i \mid y_{<i},\, H\right)$$
+
+donde y<sub><i</sub> son los tokens anteriores a *i* y N es la longitud del
+texto. Esta es la L<sub>att</sub> que pesa 0.7 en la pérdida total (sección
+3.6).
+
+**¿Por qué la máscara?** Con *teacher forcing*, el decoder ve toda la frase
+correcta. Sin máscara, para predecir el token 5 le bastaría con mirar el token 5
+de su entrada: aprendería a copiar. La máscara hace que el entrenamiento se
+comporte igual que la inferencia, donde el futuro todavía no existe. Por esta
+misma razón, nuestra aplicación puede recalcular la atención de la frase
+completa en una sola pasada (sección 5.7).
+
+**¿Por qué un decoder pequeño?** El encoder se ejecuta una sola vez por audio,
+pero el decoder se ejecuta una vez **por cada token** generado. Según los
+autores, OWSM v3.1 es hasta un 25 % más rápido que OWSM v3 en inferencia
+principalmente por su decoder más pequeño, además del paso de 40 ms del encoder
+[1].
+
+| | Bloque del encoder (E-Branchformer) | Capa del decoder (Transformer) |
+|---|---|---|
+| Atenciones | 1: *self-attention* sin máscara | 2: *self-attention* **enmascarada** y *cross-attention* |
+| Contexto local | Convolución (cgMLP, kernel 31) | No tiene |
+| FFN | Dos medias (macaron) | Una completa |
+| Q, K, V | Del audio | *Self*: del texto · *Cross*: Q del texto, K y V de H |
+| Ejecuciones | 1 por audio | 1 por cada token |
+
+### 3.8 Tokens especiales y formato multitarea
+
+Whisper [2] introdujo la idea de que **un solo modelo** haga varias tareas:
+transcribir, traducir, identificar el idioma y marcar tiempos. La tarea no se
+elige cambiando el modelo, sino **escribiéndola** al inicio del texto con tokens
+especiales. OWSM [3] reproduce este formato y lo extiende. El decoder recibe
+estos tokens como cualquier otro texto, y a partir de ellos genera la salida.
+
+```mermaid
+flowchart LR
+    SOP["sop + texto previo<br/>(opcional)"] -.-> SOS["sos"]
+    SOS --> LANG["Idioma<br/>spa, eng, …"]
+    LANG --> TASK["Tarea<br/>asr / st_eng, …"]
+    TASK --> TS["notimestamps<br/>o marcas de tiempo"]
+    TS --> TXT["Texto<br/>▁hol · a · ▁cómo …"]
+    TXT --> EOS["eos"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    class SOP memoria
+    class SOS,LANG,TASK,TS entrada
+    class TXT decoder
+    class EOS salida
+```
+
+1. **Texto previo (opcional).** El token `<sop>` seguido del texto de la
+   oración anterior da contexto al decoder [3]. En el entrenamiento de OWSM v3.1
+   se incluye con una probabilidad de 0.5 [1]. Nuestra aplicación no lo usa (ver
+   el porqué al final de esta sección).
+
+2. **Inicio (`<sos>`).** Marca dónde empieza la salida del decoder [3].
+
+3. **Idioma.** Un token por idioma del audio, como `<spa>` o `<eng>`; OWSM
+   cubre 151 idiomas, frente a los 99 de Whisper [3]. Si no se le da, el modelo
+   lo predice como primer token, y eso es exactamente la **identificación de
+   idioma** [3].
+
+4. **Tarea.** `<asr>` para transcribir en el mismo idioma, o un token de
+   traducción **por cada idioma destino**, como `<st_eng>` o `<st_spa>`. Por
+   eso OWSM puede traducir entre distintos pares de idiomas, mientras que
+   Whisper solo traduce hacia el inglés [2], [3].
+
+5. **Marcas de tiempo.** `<notimestamps>` pide solo texto. Sin ese token, el
+   modelo intercala tokens de tiempo con una resolución de 20 ms que indican
+   dónde empieza y termina cada segmento [2], [3].
+
+6. **Texto y fin (`<eos>`).** El decoder genera el texto como subpalabras de
+   SentencePiece [6] y termina con `<eos>`.
+
+Todo, incluidos los tokens de control, se predice de forma autorregresiva con
+el mismo decoder [3]. Durante la inferencia nosotros escribimos el *prompt* y el
+modelo continúa desde ahí:
+
+$$p(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid \underbrace{\texttt{<sos>}, \texttt{<spa>}, \texttt{<asr>}, \texttt{<notimestamps>}}_{\text{prompt}},\; y_{<i},\; H\right)$$
+
+Los IDs concretos de cada token y cómo se construye el *prompt* en nuestro
+código están en la sección 5.5.
+
+**¿Por qué tokens y no un modelo por tarea?** Los tokens de control entran por
+la *self-attention* enmascarada como cualquier otro token, así que **todo** lo
+que el decoder escribe después los "ve" y queda condicionado por ellos. Con los
+mismos pesos, `<asr>` produce una transcripción y `<st_eng>`, una traducción.
+Las tareas comparten lo aprendido y basta un solo modelo.
+
+**¿Por qué fijamos el idioma y no usamos texto previo?** En el modelo base, la
+identificación de idioma solo acierta el 41.9 % de las veces [1], por eso
+nuestra aplicación pide el idioma al usuario y lo escribe en el *prompt*. El
+texto previo sirve para transcribir audios largos por segmentos, pasando la
+oración anterior como contexto; nuestra aplicación procesa un solo segmento de
+hasta 30 s, así que no hay contexto que dar. El mismo espacio del *prompt*
+también puede usarse para dar una lista de palabras difíciles (*contextual
+biasing*): en small y medium mejora mucho el reconocimiento de esas palabras
+sin empeorar el resto, mientras que en el base apenas las mejora y empeora
+las demás. Los autores lo describen como una **habilidad emergente**, que aparece con el
+tamaño del modelo [1].
+
+### 3.9 Inferencia
+
+El modelo **no produce texto directamente**: en cada paso produce una
+distribución de probabilidad sobre los 50 002 tokens del vocabulario. El texto
+final es el resultado de un **algoritmo de búsqueda** que usa esas
+distribuciones para elegir token a token, más una **detokenización** que une
+los tokens en palabras. Esta sección explica la teoría; la configuración que
+usamos está en la sección 4.4 y su implementación en la sección 5.6.
+
+```mermaid
+flowchart TD
+    A["Audio"] --> ENC["Encoder<br/>(una sola vez)"]
+    ENC --> H["H<br/>749 × 384"]
+    P["Prompt<br/>sos · spa · asr · notimestamps"] --> DEC["Decoder<br/>6 capas"]
+    H -- "K, V" --> DEC
+    DEC --> SM["softmax<br/>50002 probabilidades"]
+    SM --> BS["Búsqueda<br/>greedy o beam search"]
+    BS --> FIN{"¿eos?"}
+    FIN -- "No: se agrega el token" --> DEC
+    FIN -- "Sí" --> DET["Detokenización<br/>SentencePiece"]
+    DET --> T["Texto"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef encoder fill:#FDE2C3,stroke:#D49A5A,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef paso fill:#E4D7F5,stroke:#9A86B8,color:#333
+    classDef decision fill:#FFF3BF,stroke:#C9A93B,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    class A,P entrada
+    class ENC encoder
+    class H memoria
+    class DEC decoder
+    class SM,BS,DET paso
+    class FIN decision
+    class T salida
+```
+
+1. **Generación autorregresiva.** El encoder se ejecuta una sola vez y produce
+   H. El decoder, en cambio, genera un token por paso: el token elegido se
+   agrega a su entrada y se vuelve a ejecutar para predecir el siguiente, hasta
+   que aparece `<eos>`. Para "hola cómo estás" (`▁hol`, `a`, `▁cómo`, `▁está`,
+   `s`, `<eos>`), el decoder se ejecuta 6 veces.
+
+2. **Búsqueda *greedy*.** La opción más simple es tomar siempre el token más
+   probable. Es rápida, pero un error temprano ya no se corrige, porque cada
+   token condiciona a todos los siguientes. Los resultados de reconocimiento de
+   voz del artículo se reportan con esta búsqueda [1].
+
+3. ***Beam search*.** En vez de una sola secuencia, mantiene las *k* secuencias
+   parciales más probables. En cada paso extiende cada una con sus mejores
+   candidatos y conserva solo las *k* mejores del total. El puntaje de una
+   hipótesis es la suma de las log-probabilidades de sus tokens:
+
+   $$\text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)$$
+
+   donde se usan logaritmos para sumar en vez de multiplicar probabilidades muy
+   pequeñas. Whisper usa *k* = 5 porque reduce los bucles de repetición [2], y
+   en OWSM v3 el *beam search* mejora el reconocimiento de audio largo frente a
+   *greedy* [3]. Nuestra aplicación usa *k* = 5 (sección 4.4).
+
+4. **CTC en la decodificación.** El modelo tiene una segunda salida sobre H: la
+   cabeza CTC (sección 3.6). En la búsqueda, su opinión puede combinarse con la
+   del decoder mediante un peso λ (fórmula en la sección 4.4). La cabeza CTC
+   lee el audio en orden y sin volver atrás, así que penaliza las hipótesis que
+   no siguen el audio, como repeticiones u omisiones. Los autores de OWSM
+   comparan tres opciones en reconocimiento de voz: solo CTC da los peores
+   resultados, solo el decoder es mejor, y la combinación de ambos con *beam
+   search* es la mejor; que el decoder solo supere a CTC solo indica que el
+   decoder tiene mucha capacidad [3]. La combinación solo aplica al
+   reconocimiento, porque la CTC se entrenó únicamente con transcripciones [3]:
+   en una traducción el orden de las palabras no sigue al audio.
+
+5. **Fin de la búsqueda.** Una hipótesis termina cuando genera `<eos>`. Se
+   devuelve la hipótesis terminada con mayor puntaje.
+
+6. **Detokenización y salida final.** De la secuencia ganadora se quitan el
+   *prompt* y `<eos>`, los IDs se convierten en tokens y el tokenizador
+   SentencePiece [6] los une en texto: el símbolo `▁` marca el inicio de una
+   palabra y se reemplaza por un espacio. Así,
+   `['▁hol', 'a', '▁cómo', '▁está', 's']` se convierte en "hola cómo estás"
+   (detalle en la sección 5.6).
+
+**¿Por qué no usar siempre la opción más robusta?** Cada mejora cuesta tiempo:
+el *beam search* ejecuta el decoder para *k* hipótesis a la vez, y la
+combinación con CTC añade el cálculo de la cabeza CTC en cada paso. Nosotros
+usamos *beam search* con *k* = 5, pero sin CTC (λ = 0), para que cada token lo
+decida únicamente el decoder y el mapa de *cross-attention* explique toda la
+salida (sección 4.4).
+
+| | Entrenamiento | Inferencia |
+|---|---|---|
+| Entrada del decoder | La transcripción correcta completa (*teacher forcing*) | El *prompt* más sus propias predicciones |
+| Pasadas del decoder | Una, todas las posiciones a la vez | Una por cada token generado |
+| Máscara causal | Evita mirar los tokens correctos futuros | Se mantiene; el futuro aún no existe |
+| Objetivo | Minimizar 0.3 · L<sub>CTC</sub> + 0.7 · L<sub>att</sub> | Encontrar la secuencia con mejor puntaje |
+| Papel de CTC | Pérdida auxiliar que alinea H en el tiempo | Opcional, con peso λ (λ = 0 en nuestra aplicación) |
+| Errores | No se propagan: siempre ve el prefijo correcto | Un error temprano afecta a todo lo que sigue |
 
 ---
 
