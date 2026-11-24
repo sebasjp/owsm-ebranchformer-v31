@@ -938,6 +938,25 @@ Los demás parámetros de la decodificación son:
 | `predict_time` | `False` | Sin marcas de tiempo, salvo que el usuario las active. |
 | `device` | automático | `cuda` si hay GPU, si no `cpu`. |
 
+### 4.5 Entrenamiento de los autores (referencia)
+
+Este proyecto no entrena, pero los datos del entrenamiento publicado [1] ayudan a
+interpretar el comportamiento del modelo base:
+
+| Dato | Valor (modelo base) |
+|---|---|
+| Datos | 180 mil horas de audio de corpus públicos (las mismas que OWSM v3) |
+| Pasadas | ≈ 3 sobre el conjunto completo |
+| Tamaño de lote | 256 |
+| Hardware | 16 GPU NVIDIA A100 de 40 GB |
+| Costo estimado | ≈ 2.3 mil horas-GPU (small: 3.2 mil; medium: 24.6 mil) |
+| Tasa de aprendizaje máxima | 1e-3 (small: 5e-4; medium: 2e-4) |
+| Calendario | Subida lineal por tramos y luego decaimiento exponencial |
+| Pérdida | 0.3 · CTC + 0.7 · atención (sección 3.6) |
+
+Estos valores muestran por qué no se reproduce el entrenamiento (sección 4.3) y
+cuánto menos recursos usa OWSM que Whisper, que se entrenó con unas 680 mil horas.
+
 ---
 
 ## 5. Desarrollo e implementación
@@ -1391,6 +1410,408 @@ flowchart LR
 
 ## 6. Resultados y análisis
 
+Este proyecto no entrena ni reevalúa el modelo sobre los conjuntos de prueba
+oficiales: eso requiere decenas de miles de audios con transcripción de
+referencia y una GPU. Por eso, las secciones 6.1 a 6.9 analizan las métricas
+publicadas por los autores en el artículo [1], con énfasis en el modelo **base**
+que usamos. La sección 6.10 reúne, aparte, los resultados de nuestras propias
+pruebas de inferencia.
+
+### 6.1 Métricas utilizadas
+
+| Métrica | Tarea | Qué mide | Mejor |
+|---|---|---|---|
+| **WER** (*Word Error Rate*) | ASR | Porcentaje de palabras mal reconocidas. | ↓ menor |
+| **CER** (*Character Error Rate*) | ASR en chino, japonés, coreano | Igual que WER, pero por caracteres, porque esos idiomas no separan palabras con espacios. | ↓ menor |
+| **BLEU** | Traducción (ST) | Coincidencia de secuencias de palabras (n-gramas) con una traducción de referencia, de 0 a 100. | ↑ mayor |
+| **Speed-up** | Todas | Velocidad de decodificación relativa a OWSM v3 medium (= 1.00x). 3.67x significa 3.67 veces más rápido. | ↑ mayor |
+| **Exactitud LID** | Identificación de idioma | Porcentaje de audios cuyo idioma se identifica correctamente. | ↑ mayor |
+| **F1** | Comprensión del habla (SLU) | Media armónica entre precisión y exhaustividad. | ↑ mayor |
+
+El WER se calcula comparando la transcripción del modelo con la de referencia:
+
+$$\text{WER} = \frac{S + D + I}{N}$$
+
+donde S son las palabras sustituidas, D las borradas, I las insertadas y N el
+número de palabras de la referencia. Un WER de 12.1 % significa que, en promedio,
+hay unos 12 errores por cada 100 palabras. Como I no tiene límite, el WER puede
+superar el 100 %.
+
+### 6.2 Condiciones de evaluación del artículo
+
+- **Decodificación *greedy*:** los autores escogen siempre el token más
+  probable. Nuestra aplicación usa *beam search* con k = 5 (sección 5.6), que
+  suele dar igual o menos errores, pero es más lenta.
+- **Normalización del texto:** antes de calcular el WER aplican el normalizador
+  de Whisper (minúsculas, sin puntuación, números unificados), para no contar
+  como error diferencias de formato.
+- **Hardware:** la velocidad se mide en una GPU NVIDIA A40. El speed-up es
+  relativo, así que no se puede comparar directamente con tiempos absolutos en
+  CPU (sección 6.10).
+- **Comparación justa:** OWSM v3.1 usa **los mismos 180 mil horas de datos** que
+  OWSM v3. Cualquier mejora se debe a la arquitectura y al entrenamiento, no a
+  más datos.
+
+### 6.3 Comparación de encoders
+
+Antes de entrenar los modelos finales, los autores compararon tres encoders
+con el mismo decoder y el mismo tamaño total: Transformer (366M), Conformer
+(367M) y E-Branchformer (367M). Entrenaron con el 10 % de los datos y
+compararon la pérdida de validación durante los primeros 105 mil pasos.
+
+**Resultado:** el E-Branchformer converge más rápido que los otros dos (figura 2
+del artículo). Por eso se eligió para OWSM v3.1. Los autores no compararon la
+convergencia completa porque cada entrenamiento tarda más de una semana con 16
+GPUs.
+
+**Análisis:** esta es la justificación experimental de la arquitectura descrita
+en la sección 3.5. La ventaja viene de combinar en cada bloque el contexto
+global (atención) con el local (cgMLP), en lugar de solo atención.
+
+### 6.4 Reconocimiento de voz en inglés
+
+WER (%) en nueve conjuntos de prueba en inglés (tabla 2 del artículo):
+
+| Conjunto de prueba | Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
+|---|---|---|---|---|---|---|---|
+| CommonVoice | 25.2 | 15.7 | 11.9 | 14.5 | **21.5** | 14.3 | 12.6 |
+| FLEURS | 12.4 | 9.6 | 6.4 | 10.9 | **14.8** | 10.3 | 9.0 |
+| LibriSpeech clean | 5.1 | 3.3 | 2.8 | 2.7 | **3.6** | 2.5 | 2.4 |
+| LibriSpeech other | 12.0 | 7.7 | 6.5 | 6.0 | **9.1** | 5.8 | 5.0 |
+| MLS | 13.4 | 9.1 | 10.2 | 7.4 | **12.0** | 8.1 | 7.1 |
+| Switchboard | 25.7 | 22.2 | 19.4 | 17.2 | **22.9** | 17.4 | 16.3 |
+| TEDLIUM | 6.3 | 4.6 | 5.1 | 4.8 | **7.8** | 5.0 | 5.1 |
+| VoxPopuli | 10.2 | 8.5 | 7.6 | 9.2 | **12.0** | 9.1 | 8.4 |
+| WSJ | 5.0 | 4.3 | 2.9 | 13.4 | **5.3** | 3.8 | 3.5 |
+| **WER promedio ↓** | 12.8 | 9.4 | 8.1 | 9.6 | **12.1** | 8.5 | 7.7 |
+| **Speed-up ↑** | 2.97x | 1.81x | 0.94x | 1.00x | **3.67x** | 2.21x | 1.24x |
+
+```mermaid
+xychart-beta
+    title "WER promedio en inglés (%) — menor es mejor"
+    x-axis ["Whisper base", "Whisper small", "Whisper medium", "OWSM v3 medium", "v3.1 base", "v3.1 small", "v3.1 medium"]
+    y-axis "WER (%)" 0 --> 14
+    bar [12.8, 9.4, 8.1, 9.6, 12.1, 8.5, 7.7]
+```
+
+**Análisis:**
+
+1. **Frente a OWSM v3.** OWSM v3.1 medium baja el WER promedio de 9.6 % a 7.7 %
+   y gana en 8 de 9 conjuntos, con los mismos datos. Además, es un 24 % más
+   rápido (1.24x), sobre todo porque su decoder es más pequeño. Esto confirma el
+   aporte del encoder E-Branchformer.
+
+2. **Frente a Whisper.** En cada tamaño, OWSM v3.1 logra un WER promedio menor:
+   12.1 frente a 12.8 (base), 8.5 frente a 9.4 (small) y 7.7 frente a 8.1
+   (medium). Lo hace con unas **6 veces menos horas de inglés** (73 mil frente a
+   438 mil).
+
+3. **El modelo base que usamos.** Es el **más rápido de toda la tabla (3.67x)**,
+   gracias al submuestreo ×4 de 40 ms (sección 3.4), el doble del de Whisper, y
+   a su decoder pequeño. Frente a Whisper base gana en 5 de 9 conjuntos
+   (CommonVoice, LibriSpeech clean y other, MLS, Switchboard), pero pierde en
+   FLEURS, TEDLIUM, VoxPopuli y WSJ. Es decir, su ventaja promedio no es
+   uniforme.
+
+4. **El tipo de audio importa más que el modelo.** En el base, el WER va de
+   3.6 % en LibriSpeech clean (lectura limpia de audiolibros) a 9.1 % en
+   LibriSpeech other (lectura más difícil) y 22.9 % en Switchboard
+   (conversación telefónica espontánea). El habla espontánea y con ruido es la
+   más difícil.
+
+5. **Escalado con rendimientos decrecientes.** Pasar de base a small baja el WER
+   de 12.1 a 8.5 (−3.6 puntos) con 3.6 veces más parámetros. Pasar de small a
+   medium solo lo baja a 7.7 (−0.8 puntos) con 2.8 veces más parámetros y casi
+   la mitad de velocidad.
+
+### 6.5 Reconocimiento de voz multilingüe
+
+WER o CER (%) y horas de entrenamiento de cada idioma (tabla 3 del artículo):
+
+| Idioma (conjunto) | Métrica | Horas Whisper | Whisper base | Whisper medium | Horas OWSM | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
+|---|---|---|---|---|---|---|---|---|---|
+| **Español (MLS)** | WER | 11.1K | 14.5 | 6.1 | 2.0K | 11.7 | **18.5** | 10.8 | 9.0 |
+| Francés (MLS) | WER | 9.8K | 25.2 | 9.7 | 2.5K | 14.1 | **24.2** | 14.1 | 12.1 |
+| Alemán (MLS) | WER | 13.3K | 19.9 | 8.1 | 3.7K | 11.9 | **18.7** | 12.4 | 10.8 |
+| Neerlandés (MLS) | WER | 2.1K | 30.9 | 12.2 | 1.7K | 17.7 | **28.6** | 19.7 | 18.1 |
+| Italiano (MLS) | WER | 2.6K | 32.9 | 15.6 | 0.7K | 24.5 | **33.7** | 21.8 | 20.2 |
+| Portugués (MLS) | WER | 8.6K | 23.5 | 8.9 | 0.3K | 28.2 | **44.9** | 26.7 | 21.6 |
+| Polaco (MLS) | WER | 4.3K | 25.2 | 6.8 | 0.3K | 37.0 | **49.7** | 28.5 | 25.2 |
+| Chino (AISHELL-1) | CER | 23.4K | 39.1 | 15.7 | 16.0K | 7.1 | **12.2** | 7.5 | 6.4 |
+| Coreano (Kspon clean) | CER | 8.0K | 27.0 | 17.6 | 1.0K | 20.5 | **23.8** | 17.2 | 16.7 |
+| Coreano (Kspon other) | CER | 8.0K | 22.9 | 12.8 | 1.0K | 22.6 | **26.1** | 18.9 | 18.9 |
+| Japonés (ReazonSpeech) | CER | 7.1K | 54.1 | 25.3 | 18.9K | 11.3 | **11.2** | 8.5 | 7.9 |
+| **Promedio ↓** | | | 28.7 | 12.6 | | 18.8 | **26.5** | 16.9 | 15.2 |
+
+**Análisis:**
+
+1. **La cantidad de datos por idioma explica el resultado.** Donde OWSM tiene
+   pocas horas (portugués y polaco, 0.3 mil), el base supera el 44 % de WER.
+   Donde tiene muchas (chino, 16 mil; japonés, 18.9 mil), supera incluso a
+   Whisper medium: 11.2 % de CER en japonés frente a 25.3 %.
+
+2. **Español, el idioma de nuestra demostración.** El modelo base obtiene
+   **18.5 % de WER** en MLS (audiolibros leídos en español): cerca de 1 de cada
+   5 palabras con error. Whisper base logra 14.5 %, pero se entrenó con 11.1 mil
+   horas de español, frente a solo 2 mil de OWSM. Es una referencia realista de
+   lo que se puede esperar en nuestra aplicación con habla clara.
+
+3. **Frente a OWSM v3.** El medium mejora en 10 de 11 conjuntos y baja el
+   promedio de 18.8 % a 15.2 %.
+
+4. **Frente a Whisper.** OWSM v3.1 todavía pierde en la mayoría de idiomas
+   europeos, donde Whisper tiene entre 1.2 y 29 veces más horas. Los autores
+   concluyen que el límite actual son los datos, no la arquitectura.
+
+### 6.6 Traducción de voz
+
+**Hacia el inglés** (BLEU, CoVoST-2, tabla 4 del artículo):
+
+| Idioma de origen | Horas OWSM | Whisper base | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
+|---|---|---|---|---|---|---|---|
+| Alemán | 0.2K | 11.4 | 33.6 | 16.2 | **7.3** | 15.1 | 17.1 |
+| **Español** | 0.1K | 19.2 | 39.7 | 20.5 | **10.0** | 19.3 | 22.3 |
+| Francés | 0.3K | 13.1 | 34.4 | 21.7 | **11.1** | 20.3 | 22.7 |
+| Catalán | 0.1K | 9.7 | 29.2 | 16.8 | **9.0** | 16.2 | 18.4 |
+| **BLEU promedio ↑** | | 13.4 | 34.2 | 18.8 | **9.4** | 17.7 | 20.1 |
+| **Speed-up ↑** | | 2.14x | 0.98x | 1.00x | **3.23x** | 2.26x | 1.16x |
+
+**Desde el inglés** hacia 15 idiomas (tabla 5 del artículo), el BLEU promedio es
+13.0 en OWSM v3 medium y **4.9 en v3.1 base**, 10.6 en small y 13.3 en medium. El
+base es 3.00x más rápido. Whisper no puede traducir en esas direcciones: solo
+traduce hacia el inglés.
+
+**Análisis:**
+
+1. **La traducción es el punto más débil del modelo base.** Con un BLEU de 10.0
+   de español a inglés, la traducción conserva parte del sentido, pero no es
+   fluida. Esto es coherente con la advertencia que muestra nuestra interfaz.
+
+2. **Pocos datos de traducción.** OWSM tiene entre 100 y 300 horas por
+   dirección hacia el inglés, frente a miles en Whisper. Por eso Whisper medium
+   supera a OWSM v3.1 medium por 14 puntos de BLEU (34.2 frente a 20.1).
+
+3. **El tamaño importa más en traducción que en transcripción.** De base a small,
+   el BLEU casi se duplica (9.4 → 17.7), mientras que el WER en inglés mejora
+   alrededor de un 30 %. Traducir exige más capacidad que transcribir.
+
+4. **Direcciones sin evaluar.** Los 15 idiomas destino de la tabla 5 no incluyen
+   español, francés ni portugués. Por lo tanto, las opciones *Traducir → español,
+   francés o portugués* de nuestra aplicación no tienen una métrica publicada.
+
+### 6.7 Audio largo
+
+Para audios de más de 30 s, el modelo procesa ventanas consecutivas de 30 s y
+avanza según las marcas de tiempo que predice. WER (%) en TEDLIUM con charlas
+completas (tabla 6 del artículo):
+
+| Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
+|---|---|---|---|---|---|---|
+| 5.3 | 4.4 | 3.8 | 9.2 | **9.6** | 6.7 | 5.7 |
+
+**Análisis:** el modelo base empeora de 7.8 % (segmentos cortos, tabla 2) a
+9.6 % con audio largo, y queda lejos de Whisper base (5.3 %). Según los autores,
+muchos conjuntos públicos solo traen audio ya segmentado en frases cortas, así
+que el modelo casi no ve audio largo continuo durante el entrenamiento. Esto
+respalda la decisión de limitar nuestra aplicación a 30 s.
+
+### 6.8 Identificación de idioma
+
+Exactitud (%) de identificación de idioma en FLEURS (tabla 7 del artículo):
+
+| Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
+|---|---|---|---|---|---|---|
+| 47.6 | 53.1 | 54.8 | 81.4 | **41.9** | 67.1 | 75.6 |
+
+**Análisis:** el modelo base solo identifica bien el idioma en el 41.9 % de los
+casos, el peor valor de la tabla. De base a medium, la exactitud casi se duplica
+(41.9 % → 75.6 %), mientras que en Whisper apenas sube (47.6 % → 54.8 %). Con un
+modelo base no conviene dejar que el modelo adivine el idioma. Por eso nuestra
+aplicación le pide al usuario el idioma y lo fija en el prompt (`<spa>`,
+`<eng>`…).
+
+### 6.9 Otros resultados del artículo
+
+**Comprensión del habla** (tabla 8, solo modelo medium). Se congela el encoder y
+se entrena encima un decoder pequeño para cada tarea:
+
+| Tarea | Métrica | OWSM v3 | OWSM v3.1 |
+|---|---|---|---|
+| Análisis de sentimiento | F1 | 60.1 | 56.2 |
+| Reconocimiento de entidades | F1 | 54.8 | 65.8 |
+| Localización de entidades | frame-F1 | 40.5 | 50.4 |
+| Clasificación de actos de diálogo | F1 | 56.5 | 64.8 |
+
+El encoder E-Branchformer mejora en 3 de 4 tareas, con hasta 11 puntos más. Esto
+indica que sus representaciones (H) sirven también fuera de la transcripción.
+
+**Sesgo contextual sin entrenamiento** (tabla 9). Al darle al modelo una lista de
+100 palabras raras como prompt, se espera que las reconozca mejor (B-WER) sin
+empeorar las demás (U-WER). En LibriSpeech test-other:
+
+| Modelo | WER sin lista | WER con lista | U-WER sin → con | B-WER sin → con |
+|---|---|---|---|---|
+| **v3.1 base** | 9.48 | 12.49 | 6.89 → 10.45 | 32.17 → 30.36 |
+| v3.1 small | 6.16 | 5.89 | 4.21 → 4.48 | 23.27 → 18.34 |
+| v3.1 medium | 5.31 | 5.03 | 3.52 → 3.86 | 21.12 → 15.35 |
+
+El modelo base empeora: no distingue las palabras útiles de las distractoras.
+Small y medium sí aprovechan la lista. Los autores lo interpretan como una
+**habilidad emergente**, que solo aparece a partir de cierto tamaño, como en los
+grandes modelos de lenguaje. Esto justifica que nuestra aplicación no use el
+prompt de texto previo (`text_prev`) con el modelo base.
+
+### 6.10 Resultados de nuestras pruebas de inferencia
+
+Hasta ahora, el repositorio tiene documentada una prueba de la aplicación, con su
+captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
+
+| Campo | Valor |
+|---|---|
+| Fecha | 2026-11-21 12:57:13 |
+| Modelo | `espnet/owsm_v3.1_ebf_base` (101M) |
+| Dispositivo | CPU |
+| Audio | Grabado con el micrófono: 3.7 s, 16 000 Hz mono, 59 520 muestras |
+| Prompt | `<sos> <spa> <asr> <notimestamps>` |
+| Texto obtenido | "vamos a sacar cinco en esta tarea" |
+| Tiempo de inferencia | 21.18 s |
+| Tokens generados | 12 (incluye `<eos>`) |
+| RTF | 5.69 |
+| Confianza media por token | 70 % |
+
+**Análisis:**
+
+1. **Funciona de extremo a extremo.** El audio se grabó en la interfaz, se
+   procesó con el modelo preentrenado y produjo una frase completa y coherente en
+   español. Esto cumple el requisito de inferencia funcional con visualización.
+
+2. **El RTF mayor que 1 se explica por la ventana fija de 30 s.** Un RTF de 5.69
+   significa que procesar 3.7 s de audio tardó 5.7 veces más que su duración.
+   Pero el modelo no procesa 3.7 s: rellena con silencio hasta 30 s (sección
+   5.4), así que el encoder trabaja siempre sobre 749 frames. Medido sobre la
+   ventana real, el costo es 21.18 / 30 ≈ **0.71 s por segundo de audio**. Por
+   eso el RTF de un audio corto siempre parece alto: el costo del encoder es casi
+   fijo.
+
+3. **Diferencias con la velocidad del artículo.** El artículo mide en una GPU
+   A40, con decodificación *greedy* y sin extraer la atención. Nuestra medición
+   se hizo en CPU, con *beam search* de 5 hipótesis, e incluye la segunda pasada
+   del decoder para leer la atención (sección 5.7). Los tres factores aumentan el
+   tiempo, así que las cifras no son comparables directamente.
+
+4. **Confianza del 70 %.** Es el promedio de la probabilidad que el decoder dio a
+   cada uno de los 12 tokens. Un valor medio como este suele combinar tokens muy
+   seguros con algunos dudosos; la tabla de tokens de la interfaz permite ver
+   cuáles son.
+
+5. **Sin WER propio todavía.** La prueba no registró la frase que se dijo
+   realmente, así que no se puede calcular el error. Si la frase pronunciada fue
+   exactamente "vamos a sacar cinco en esta tarea", el WER de esta prueba sería
+   0 %. Como referencia, el artículo reporta un 18.5 % para el modelo base en
+   español leído (sección 6.5).
+
+**Pruebas pendientes para completar esta sección:**
+
+- [ ] Grabar entre 5 y 10 audios propios con su transcripción de referencia y
+      calcular el WER y el CER.
+- [ ] Repetir una misma prueba dos veces para separar la primera ejecución
+      (carga) de las siguientes.
+- [ ] Medir el RTF con audios de distinta duración (5, 15 y 30 s) y verificar
+      que el tiempo es casi constante.
+- [ ] Probar inglés (`<eng>`) y una traducción (`<st_eng>`) y comparar con las
+      tablas 6.4 y 6.6.
+- [ ] Agregar capturas de los mapas de cross-attention y analizar el patrón
+      diagonal.
+
+### 6.11 Protocolo para completar las pruebas propias
+
+Para que los resultados sean comparables con las tablas anteriores, cada prueba
+debe registrar los mismos campos que la de la sección 6.10 y llevar su captura de
+pantalla (la barra lateral muestra fecha, dispositivo y modelo).
+
+| Caso | Qué se quiere ver |
+|---|---|
+| Español, frase corta, voz propia | WER de referencia y patrón de atención en un caso fácil. |
+| Español, frase larga (≈ 25 s) | Si el WER y el RTF cambian con la duración (el costo del encoder es casi fijo). |
+| Español con ruido de fondo | Cuánto empeora el WER y cómo cambia la confianza por token. |
+| Inglés (`<eng>`) | Comparar con las tablas 6.4 (WER en inglés). |
+| Traducción español → inglés (`<st_eng>`) | Revisión cualitativa de la salida; el artículo reporta BLEU 10.0 para el base (6.6). |
+| Audio de más de 30 s | Confirmar que solo se procesan los primeros 30 s (sección 5.4). |
+| Silencio o música sin voz | Ver qué genera el modelo cuando no hay habla y cómo se ve la atención. |
+
+El WER y el CER se pueden calcular con la biblioteca `jiwer`. Conviene normalizar
+antes ambos textos (minúsculas, sin puntuación), como hacen los autores con el
+normalizador de Whisper (sección 6.2), para no contar como error un cambio de
+formato:
+
+```python
+import re
+import jiwer
+
+def normalizar(texto: str) -> str:
+    texto = texto.lower()
+    texto = re.sub(r"[^\w\s]", "", texto)   # quita puntuación
+    return re.sub(r"\s+", " ", texto).strip()
+
+referencia = "Vamos a sacar cinco en esta tarea."
+salida = "vamos a sacar cinco en esta tarea"
+print("WER:", jiwer.wer(normalizar(referencia), normalizar(salida)))
+print("CER:", jiwer.cer(normalizar(referencia), normalizar(salida)))
+```
+
+Con pocas frases el WER es muy ruidoso: una palabra errada en una frase de 7
+palabras ya es un 14 %. Por eso se debe reportar junto con el número de palabras
+de la referencia.
+
+### 6.12 Análisis esperado de la cross-attention
+
+Esta subsección es una hipótesis que debe confirmarse o corregirse con las
+capturas de las pruebas propias. Cada fila del mapa es un token generado y cada
+columna, un frame de 40 ms de H (sección 5.7):
+
+- **Patrón diagonal en transcripción.** Las palabras se escriben en el orden en
+  que se dijeron, así que cada token debería mirar el tramo de audio donde se
+  pronunció.
+- **Cabezas distintas.** La comparación de las 6 cabezas de una capa permite ver
+  cuáles se alinean con el habla y cuáles reparten su atención de forma difusa.
+- **Tokens especiales y puntuación.** `<eos>` y la puntuación no corresponden a un
+  sonido concreto, así que se espera que miren el final del habla o zonas de
+  silencio.
+- **Confianza.** La tabla de probabilidades por token muestra dónde duda el
+  decoder; se espera que los tokens de probabilidad baja coincidan con las
+  palabras mal reconocidas.
+- **Verificación visual.** Al comparar el log-Mel de arriba con el mapa de abajo,
+  la atención debería caer sobre los instantes con energía de voz.
+
+### 6.13 Limitaciones
+
+- **Ventana fija de 30 s.** La aplicación solo procesa los primeros 30 s. En audio
+  largo el modelo también rinde peor (sección 6.7).
+- **Pocos datos por idioma.** El modelo base llega al 18.5 % de WER en español y
+  supera el 44 % en portugués y polaco (sección 6.5). El límite es la cantidad de
+  datos, no la arquitectura.
+- **Traducción débil.** BLEU de 10.0 de español a inglés, y sin métrica publicada
+  para traducir a español, francés o portugués (sección 6.6).
+- **Identificación de idioma poco fiable.** Solo el 41.9 % de exactitud en el base
+  (sección 6.8), por eso la aplicación fija el idioma en el prompt.
+- **Velocidad en CPU.** El RTF es mayor que 1 en audios cortos por el relleno a
+  30 s (sección 6.10).
+- **Sin CTC en la inferencia.** Se usa `ctc_weight = 0` para poder explicar la
+  salida con la cross-attention; la decodificación híbrida suele ser más robusta
+  ante repeticiones u omisiones (sección 4.4).
+- **Alcance.** Solo inferencia con el modelo base: sin entrenamiento, sin ajuste
+  fino y sin evaluación en los conjuntos oficiales del artículo.
+
+### 6.14 Posibles mejoras
+
+- Procesar audios largos por ventanas de 30 s, avanzando con las marcas de tiempo
+  que predice el modelo (sección 6.7).
+- Agregar a la interfaz un campo de texto de referencia para calcular el WER y el
+  CER, y un selector del tamaño del haz.
+- Probar la decodificación híbrida (`ctc_weight` mayor que 0) y comparar el WER con
+  el de la atención sola.
+- Usar GPU o el modelo medium si se necesita mayor calidad, con los costos de
+  memoria de la sección 4.3.
 
 ---
 
