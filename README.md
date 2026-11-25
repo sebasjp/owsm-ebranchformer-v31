@@ -1493,7 +1493,23 @@ global (atención) con el local (cgMLP), en lugar de solo atención.
 
 ### 6.4 Reconocimiento de voz en inglés
 
-WER (%) en nueve conjuntos de prueba en inglés (tabla 2 del artículo):
+**Qué se evalúa:** qué tan bien transcribe cada modelo audio en inglés de nueve tipos
+distintos.
+
+**Cómo leer la tabla (tabla 2 del artículo):** cada fila es un conjunto de prueba (un
+tipo de audio); cada columna es un modelo; los números son WER en % (sección 6.1), así
+que **menor es mejor**. Las dos últimas filas son el promedio y la velocidad. Los
+modelos se ordenan por tamaño (base < small < medium): uno más grande suele ser más
+preciso, pero también más lento. Los nueve conjuntos son:
+
+- *CommonVoice*: voluntarios leyendo frases.
+- *FLEURS*: frases leídas, en muchos idiomas.
+- *LibriSpeech clean* y *other*: audiolibros, con grabaciones limpias o más difíciles.
+- *MLS*: audiolibros en varios idiomas.
+- *Switchboard*: llamadas telefónicas con habla espontánea.
+- *TEDLIUM*: charlas TED.
+- *VoxPopuli*: discursos del Parlamento Europeo.
+- *WSJ*: noticias del Wall Street Journal leídas en voz alta.
 
 | Conjunto de prueba | Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
 |---|---|---|---|---|---|---|---|
@@ -1536,7 +1552,7 @@ xychart-beta
    FLEURS, TEDLIUM, VoxPopuli y WSJ. Es decir, su ventaja promedio no es
    uniforme.
 
-4. **El tipo de audio importa más que el modelo.** En el base, el WER va de
+4. **El tipo de audio cambia mucho el resultado.** En el base, el WER va de
    3.6 % en LibriSpeech clean (lectura limpia de audiolibros) a 9.1 % en
    LibriSpeech other (lectura más difícil) y 22.9 % en Switchboard
    (conversación telefónica espontánea). El habla espontánea y con ruido es la
@@ -1549,7 +1565,15 @@ xychart-beta
 
 ### 6.5 Reconocimiento de voz multilingüe
 
-WER o CER (%) y horas de entrenamiento de cada idioma (tabla 3 del artículo):
+**Qué se evalúa:** qué tan bien transcribe cada modelo en otros idiomas, y cómo se
+relaciona el error con la cantidad de datos de entrenamiento.
+
+**Cómo leer la tabla (tabla 3 del artículo):** cada fila es un idioma con su conjunto de
+prueba. Las columnas *Horas* indican cuántas horas de audio de ese idioma se usaron para
+entrenar (K = mil). Los demás números son WER o CER en % (**menor es mejor**); el CER
+mide errores por letra y se usa en chino, coreano y japonés, que no separan las palabras
+con espacios (sección 6.1). Lo más útil es comparar el error de cada idioma con sus
+horas de entrenamiento.
 
 | Idioma (conjunto) | Métrica | Horas Whisper | Whisper base | Whisper medium | Horas OWSM | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
 |---|---|---|---|---|---|---|---|---|---|
@@ -1582,11 +1606,20 @@ WER o CER (%) y horas de entrenamiento de cada idioma (tabla 3 del artículo):
 3. **Frente a OWSM v3.** El medium mejora en 10 de 11 conjuntos y baja el
    promedio de 18.8 % a 15.2 %.
 
-4. **Frente a Whisper.** OWSM v3.1 todavía pierde en la mayoría de idiomas
-   europeos, donde Whisper tiene entre 1.2 y 29 veces más horas. Los autores
+4. **Frente a Whisper.** Al comparar modelos del mismo tamaño (medium contra
+   medium), OWSM v3.1 pierde en los 7 idiomas europeos, donde Whisper tiene entre
+   1.2 y 29 veces más horas. Los autores
    concluyen que el límite actual son los datos, no la arquitectura.
 
 ### 6.6 Traducción de voz
+
+**Qué se evalúa:** qué tan bien traduce el modelo directamente el habla a otro idioma
+(por ejemplo, audio en español → texto en inglés), sin pasar antes por una transcripción.
+
+**Cómo leer la tabla:** cada fila es el idioma del audio original. Se mide con BLEU
+(sección 6.1; de 0 a 100, **mayor es mejor**), que compara la traducción del modelo con
+una traducción humana de referencia. Para tener una idea de la escala, en español Whisper
+medium llega a 39.7 y el v3.1 base, a 10.0.
 
 **Hacia el inglés** (BLEU, CoVoST-2, tabla 4 del artículo):
 
@@ -1624,6 +1657,10 @@ traduce hacia el inglés.
 
 ### 6.7 Audio largo
 
+**Qué se evalúa:** qué pasa con audios largos (charlas completas), que no caben en una
+sola ventana de 30 s. **Cómo leer la tabla:** una sola fila con el WER de cada modelo
+en TEDLIUM (**menor es mejor**).
+
 Para audios de más de 30 s, el modelo procesa ventanas consecutivas de 30 s y
 avanza según las marcas de tiempo que predice. WER (%) en TEDLIUM con charlas
 completas (tabla 6 del artículo):
@@ -1640,6 +1677,11 @@ respalda la decisión de limitar nuestra aplicación a 30 s.
 
 ### 6.8 Identificación de idioma
 
+**Qué se evalúa:** si el modelo puede adivinar en qué idioma habla la persona (a través
+del token de idioma de la sección 3.8) cuando nadie se lo indica. **Cómo leer la tabla:**
+es la exactitud en %: de cada 100 audios de FLEURS, cuántos identifica con el idioma
+correcto (**mayor es mejor**).
+
 Exactitud (%) de identificación de idioma en FLEURS (tabla 7 del artículo):
 
 | Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
@@ -1655,8 +1697,31 @@ aplicación le pide al usuario el idioma y lo fija en el prompt (`<spa>`,
 
 ### 6.9 Otros resultados del artículo
 
-**Comprensión del habla** (tabla 8, solo modelo medium). Se congela el encoder y
-se entrena encima un decoder pequeño para cada tarea:
+Además de transcribir y traducir, los autores probaron dos usos adicionales del modelo.
+Ninguno forma parte de nuestra aplicación; los incluimos porque muestran qué más sabe
+hacer el modelo y qué tan buenas son sus representaciones internas.
+
+#### a) Comprensión del habla (tabla 8, solo modelo medium)
+
+**Qué se evalúa:** si lo que aprende el encoder sirve para algo más que transcribir.
+En lugar de pedirle el texto, se **congela** el encoder (se usa tal cual, sin
+reentrenarlo) y se entrena encima un decodificador pequeño, nuevo, para cada tarea de
+comprensión. Si el encoder produce buenas representaciones del audio, ese decodificador
+pequeño las aprovecha y obtiene buenos resultados. Las cuatro tareas, en palabras
+simples (el artículo no las define con más detalle):
+
+- **Análisis de sentimiento:** decidir si lo que se dice es positivo, negativo o neutro.
+- **Reconocimiento de entidades:** encontrar nombres de personas, lugares,
+  organizaciones, fechas, etc. dentro de lo que se dice.
+- **Localización de entidades:** señalar **en qué momento del audio** se dice cada
+  entidad (por eso se mide por fragmentos de tiempo, *frames*).
+- **Clasificación de actos de diálogo:** decidir qué función cumple cada intervención en
+  una conversación (pregunta, afirmación, agradecimiento, etc.).
+
+**Cómo leer la tabla:** la métrica es **F1**, de 0 a 100 (**mayor es mejor**). Combina
+dos preguntas: *precisión* (de lo que el modelo marcó, cuánto era correcto) y
+*exhaustividad* (de lo que había que encontrar, cuánto encontró). *frame-F1* es lo mismo
+pero medido por fragmentos de tiempo.
 
 | Tarea | Métrica | OWSM v3 | OWSM v3.1 |
 |---|---|---|---|
@@ -1665,12 +1730,22 @@ se entrena encima un decoder pequeño para cada tarea:
 | Localización de entidades | frame-F1 | 40.5 | 50.4 |
 | Clasificación de actos de diálogo | F1 | 56.5 | 64.8 |
 
-El encoder E-Branchformer mejora en 3 de 4 tareas, con hasta 11 puntos más. Esto
-indica que sus representaciones (H) sirven también fuera de la transcripción.
+**Interpretación:** el encoder de v3.1 mejora en 3 de las 4 tareas (hasta 11 puntos en
+reconocimiento de entidades: de 54.8 a 65.8) y empeora en análisis de sentimiento (de
+60.1 a 56.2). Es decir, el E-Branchformer no solo ayuda a transcribir: sus
+representaciones también sirven para entender el contenido, aunque la mejora no es
+uniforme. Este resultado respalda la elección del E-Branchformer (sección 6.3), pero no
+afecta a nuestra aplicación, que solo transcribe y traduce.
 
-**Sesgo contextual sin entrenamiento** (tabla 9). Al darle al modelo una lista de
-100 palabras raras como prompt, se espera que las reconozca mejor (B-WER) sin
-empeorar las demás (U-WER). En LibriSpeech test-other:
+#### b) Sesgo contextual sin entrenamiento (tabla 9)
+
+**Qué se evalúa:** si el modelo puede reconocer mejor palabras difíciles o poco comunes
+(nombres propios, términos técnicos) cuando se le entregan de antemano, **sin
+reentrenarlo**. Se escribe una lista de 100 palabras como texto previo en el *prompt* y
+se mide si el modelo las transcribe mejor. La prueba usa LibriSpeech test-other y separa
+dos grupos de palabras: **B-WER** es el error sobre las palabras de la lista (*biased*) y
+**U-WER**, el error sobre todas las demás (*unbiased*). Lo ideal es que el B-WER baje
+(aprovecha la lista) sin que el U-WER suba (no se confunde con el resto).
 
 | Modelo | WER sin lista | WER con lista | U-WER sin → con | B-WER sin → con |
 |---|---|---|---|---|
@@ -1678,15 +1753,26 @@ empeorar las demás (U-WER). En LibriSpeech test-other:
 | v3.1 small | 6.16 | 5.89 | 4.21 → 4.48 | 23.27 → 18.34 |
 | v3.1 medium | 5.31 | 5.03 | 3.52 → 3.86 | 21.12 → 15.35 |
 
-El modelo base empeora: no distingue las palabras útiles de las distractoras.
-Small y medium sí aprovechan la lista. Los autores lo interpretan como una
-**habilidad emergente**, que solo aparece a partir de cierto tamaño, como en los
-grandes modelos de lenguaje. Esto justifica que nuestra aplicación no use el
-prompt de texto previo (`text_prev`) con el modelo base.
+**Interpretación:** small y medium aprovechan la lista: su B-WER baja de 23.27 a 18.34 y
+de 21.12 a 15.35, con un costo pequeño en el U-WER (sube menos de 0.4 puntos). El base
+no: su B-WER casi no mejora (32.17 → 30.36) y su U-WER sube mucho (6.89 → 10.45), así
+que el WER total empeora (9.48 → 12.49), porque el *prompt* lo confunde. Los autores lo
+describen como una **habilidad emergente**: solo aparece a partir de cierto tamaño del
+modelo, como se ha observado en los grandes modelos de lenguaje. Para nuestro proyecto,
+esto justifica que la aplicación no use el texto previo (`text_prev`) con el modelo base.
 
 ### 6.10 Resultados de nuestras pruebas de inferencia
 
-La primera prueba documentada de la aplicación, con su captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
+Esta sección reúne lo que **medimos nosotros** al ejecutar el modelo en un computador
+sin GPU. Las secciones 6.1 a 6.9 resumen lo que publican los autores; aquí comprobamos
+qué pasa en nuestro caso. Tiene dos partes: primero, la primera prueba de la aplicación
+(sin texto de referencia) y, después, las pruebas con referencia (6.10.1 a 6.10.9), que
+permiten medir cuánto se equivoca el modelo. Cada subsección empieza con **qué
+analizamos** y termina con **en pocas palabras**, para poder leerla sin conocer el resto.
+
+**Primera prueba de la aplicación.** *Qué analizamos:* si la aplicación funciona de
+extremo a extremo y cuánto tarda. La captura de pantalla está en
+[`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
 
 | Campo | Valor |
 |---|---|
@@ -1733,6 +1819,11 @@ La primera prueba documentada de la aplicación, con su captura de pantalla en [
 
 #### 6.10.1 Diseño de las pruebas con referencia
 
+**Qué analizamos:** cuánto se equivoca el modelo al transcribir español con una voz real,
+y cómo cambia con ruido, con otra configuración de búsqueda y con audios problemáticos.
+Para medir un error hay que saber qué se dijo realmente, así que leímos en voz alta textos
+conocidos (la **referencia**) y comparamos con lo que escribió el modelo (la **hipótesis**).
+
 Para medir el error se grabaron 44 audios con la voz del autor, en un computador
 Windows sin GPU, con `ctc_weight = 0` y *beam search* de 5 (la configuración de la
 aplicación). Hay dos tipos de texto de referencia, para poder comparar:
@@ -1758,11 +1849,45 @@ Las pruebas con ruido y de *beam search* usan las 36 frases (392 palabras). Ante
 calcular el error, ambos textos se normalizan: minúsculas, sin puntuación y números
 escritos con palabras. Todo se ejecutó con `scripts/evaluar.py` (sección 6.11).
 
-Con pocas palabras, el WER cambia mucho de una muestra a otra. Por eso, en esta
-sección el WER global se acompaña de un **intervalo de confianza del 95 %**,
-calculado remuestreando frases completas (*bootstrap*, 5000 repeticiones).
+**Cómo se calcularon los valores.**
+
+1. Grabamos cada frase leyéndola en voz alta (audio mono de 16 kHz).
+2. El modelo la transcribió (la hipótesis).
+3. Normalizamos ambos textos, para no contar como error diferencias de formato:
+   minúsculas, sin puntuación y números escritos con letras.
+4. Contamos los errores palabra por palabra: sustituidas (S), borradas (D) e
+   insertadas (I). **WER = (S + D + I) / N**, donde N es el número de palabras de la
+   referencia (sección 6.1). Ejemplo: la referencia "el bus llegó tarde y por eso no
+   alcancé a desayunar" (11 palabras) salió "el bus llegó tarde y por eso no alcance ha
+   desayunar". Hay 2 sustituciones ("alcancé" → "alcance", "a" → "ha"), así que
+   WER = 2 / 11 = 18.2 %.
+5. El **WER de un grupo** de frases se calcula sumando los errores de todas y dividiendo
+   entre el total de palabras (no se promedian los porcentajes de cada frase).
+6. El **CER** es lo mismo, pero contando letras en lugar de palabras.
+7. La **confianza** es el promedio de la probabilidad que el modelo asigna a cada token
+   (cada pedazo de palabra) que escribe: 1 sería seguridad total.
+
+**Cómo se calculó el intervalo de confianza.** El WER depende de qué frases escogimos:
+con otras frases habría salido un número distinto. Para saber cuánto podría variar, usamos
+una técnica llamada *bootstrap* (remuestreo):
+
+1. Del grupo de frases (por ejemplo, las 36) se sacan 36 **al azar con reemplazo**: una
+   misma frase puede salir varias veces y otra no salir.
+2. Se calcula el WER de esa muestra.
+3. Se repite 5000 veces, con lo que se obtienen 5000 WER ligeramente distintos.
+4. Se ordenan y se descarta el 2.5 % más bajo y el 2.5 % más alto. El rango que queda
+   es el **intervalo de confianza del 95 %**.
+
+Se lee así: "20.7 %, con intervalo de 15.7 a 25.8" significa que, con otras frases
+parecidas, el WER probablemente estaría entre 16 % y 26 %. Cuantas más palabras se
+miden, más angosto es el intervalo. También lo usamos para comparar dos grupos: si sus
+intervalos se solapan mucho, no podemos asegurar que la diferencia sea real.
 
 #### 6.10.2 Precisión: WER y CER
+
+**Qué analizamos:** cuántas palabras escribe mal el modelo en español con nuestra voz, y si
+el error cambia entre las frases del libro (vocabulario literario del siglo XIX) y las
+frases cotidianas.
 
 | Grupo | Palabras | Palabras erradas | WER | IC 95 % |
 |---|---|---|---|---|
@@ -1792,9 +1917,10 @@ calculado remuestreando frases completas (*bootstrap*, 5000 repeticiones).
    modelo falla ("abuelita", "sollozo", "niebla" salieron "vuelita", "soyoso",
    "nieula"), pero también falló en palabras comunes ("hasta mañana" salió "esta
    mañana"). Hay más frases cotidianas perfectas (5 de 12) que del libro (2 de 24).
-3. **El CER es menor que el WER** (5.0 % a 7.0 % de promedio contra 15 a 23 %): las
-   palabras erradas suelen parecerse en sonido a la correcta. Un error de una
-   letra cuenta como palabra entera en el WER.
+3. **El CER es menor que el WER** (promedio por frase de 6.9 % en el libro y 5.0 %
+   en las cotidianas, frente a WER de 23.4 % y 15.4 %): las palabras erradas suelen
+   parecerse en sonido a la correcta. Un error de una sola letra cuenta como palabra
+   entera en el WER.
 4. **La confianza anticipa el error, pero poco.** En las 36 frases, la confianza
    media por token y el WER tienen una correlación de −0.43: las frases con más
    confianza tienden a tener menos error, pero con mucha dispersión. Sirve como
@@ -1804,10 +1930,27 @@ calculado remuestreando frases completas (*bootstrap*, 5000 repeticiones).
    ese tiempo (las primeras 77 de 109 palabras, suponiendo ritmo constante), el WER
    es de ≈ 24.7 %, parecido al de `larga`.
 
+**Cómo leer las figuras.** La primera muestra el WER de cada frase (una barra por frase;
+sin barra significa 0 % de error). Se ve que el error varía mucho de una frase a otra, de
+0 % a más de 50 %. La segunda compara los dos grupos con su intervalo de confianza (la
+línea vertical de cada barra): como los intervalos se solapan, la diferencia entre libro y
+cotidiano no es concluyente.
+
+**En pocas palabras:** el modelo se equivoca en aproximadamente 1 de cada 5 palabras en
+español, un resultado compatible con el del artículo (18.5 %). Con las frases del libro
+el error fue mayor que con las cotidianas, pero no podemos asegurar que esa diferencia sea
+real con tan pocas frases.
+
 #### 6.10.3 Efecto del ruido
 
-Se sumó ruido blanco gaussiano a las 36 frases con una relación señal/ruido (SNR)
-dada. Una SNR menor significa más ruido.
+**Qué analizamos:** qué pasa con el error cuando hay ruido de fondo. Para controlarlo,
+sumamos ruido artificial a las mismas 36 frases, siempre con el mismo método.
+
+Se sumó ruido blanco gaussiano (un "siseo" constante, como el de una radio mal
+sintonizada) a las 36 frases con una relación señal/ruido (**SNR**) dada. La SNR, en
+decibelios (dB), indica cuánto más fuerte es la voz que el ruido: **una SNR menor
+significa más ruido**. Como referencia, 20 dB es un ruido leve, 10 dB es moderado y 5 dB
+es fuerte, con la voz apenas por encima del ruido.
 
 | Condición | WER |
 |---|---|
@@ -1824,7 +1967,23 @@ palabras. Es ruido blanco sintético, fácil de reproducir pero distinto del rui
 de un lugar real (voces, ventiladores, calle), así que las cifras son una guía y no
 una predicción para un ambiente concreto.
 
+**En pocas palabras:** con ruido leve el modelo casi no cambia, pero con ruido moderado el
+error se duplica y con ruido fuerte supera el 50 %. Para usar el modelo conviene grabar en
+un lugar tranquilo.
+
 #### 6.10.4 *Beam search* de 5 contra *greedy*
+
+**Qué analizamos:** si la forma de buscar el texto cambia el resultado. El decoder escribe
+una palabra (token) a la vez, y hay dos formas de escoger:
+
+- ***Greedy* (codicioso, beam 1):** en cada paso elige solo el token más probable y sigue.
+  Es rápido, pero no puede corregir una mala elección anterior.
+- ***Beam search* con 5 (beam 5):** mantiene a la vez las 5 mejores frases parciales y, al
+  terminar, se queda con la más probable en conjunto. Explora más opciones, pero es más
+  lento.
+
+Nuestra aplicación usa beam 5 (sección 5.6); el artículo evalúa con *greedy* (sección 6.2).
+Aquí comprobamos si ese costo extra vale la pena.
 
 | Beam | WER (36 frases) | Tiempo medio por frase |
 |---|---|---|
@@ -1841,7 +2000,16 @@ parecía de 6 puntos; con más datos desapareció. Esto muestra por qué hace fa
 muestra grande antes de sacar conclusiones. Estos tiempos no incluyen la segunda
 pasada para leer la atención.
 
+**En pocas palabras:** beam 5 casi no mejora la precisión en nuestras pruebas y tarda más
+del doble, así que no se justifica en este conjunto de frases.
+
 #### 6.10.5 Tiempo de inferencia
+
+**Qué analizamos:** cuánto tarda el modelo en nuestro computador (sin GPU) y de qué
+depende ese tiempo. Usamos el **RTF** (*real-time factor*): tiempo de cálculo dividido
+entre la duración del audio. Un RTF de 1 significa que procesar un audio tarda lo mismo
+que lo que dura; menor que 1, más rápido que el audio; mayor que 1, más lento. Un *token*
+es cada pedazo de palabra que escribe el decoder.
 
 ![Tiempo contra tokens](docs/figuras/p1_tiempo_vs_tokens.png)
 
@@ -1861,7 +2029,18 @@ hicieron en un computador distinto al de la prueba inicial).
 
 ![RTF por audio](docs/figuras/p1_rtf_sin_silencio.png)
 
+**Cómo leer las figuras.** La primera es un punto por audio: en el eje horizontal, los
+tokens que escribió el modelo; en el vertical, cuánto tardó. Los puntos siguen una línea
+casi recta. La segunda muestra el RTF de cada audio; los más cortos tienen un RTF alto
+porque la parte fija (≈ 2.2 s) pesa más.
+
+**En pocas palabras:** el tiempo depende sobre todo de cuántas palabras escribe el modelo,
+no de cuánto dura el audio, y el modelo base es lo bastante liviano para usarse en CPU,
+con tiempos del orden de la duración del audio.
+
 #### 6.10.6 Resumen de resultados propios
+
+**Qué reúne:** las cifras principales de las pruebas anteriores, en una sola tabla.
 
 | Medida | Valor |
 |---|---|
@@ -1873,7 +2052,13 @@ hicieron en un computador distinto al de la prueba inicial).
 | Tiempo medio con voz y beam 5 | 6.2 s por audio (RTF medio 0.98, 43 audios) |
 | Tiempo por token | ≈ 0.18 s, más ≈ 2.2 s fijos |
 
+**En pocas palabras:** el modelo se equivoca en 1 de cada 5 palabras (en línea con el
+artículo), empeora mucho con ruido fuerte, y la búsqueda con 5 hipótesis no aporta una
+mejora clara.
+
 #### 6.10.7 Audio de más de 30 s
+
+**Qué analizamos:** qué hace el modelo con un audio más largo que su ventana de 30 s.
 
 `muylarga` dura 42 s. ESPnet lo recortó a 30 s y lo avisó con una advertencia
 (*"trimming the input ... to 480000 samples"*), que también sugiere usar
@@ -1882,7 +2067,13 @@ tramo inicial. Esto confirma la limitación de la ventana fija de 30 s (sección
 6.7). Con `larga` (26 s), que sí cabe en la ventana, el modelo mantiene la
 alineación en todo el audio (sección 6.12).
 
+**En pocas palabras:** el modelo base no puede transcribir un audio de más de 30 s de una
+sola vez; hay que dividirlo en ventanas.
+
 #### 6.10.8 Inglés y traducción
+
+**Qué analizamos:** cómo se comporta el modelo con otro idioma (inglés) y con la tarea de
+traducir (español → inglés), que el artículo describe como su punto débil (sección 6.6).
 
 - **Inglés** (4 frases, 44 palabras): WER de 11.4 %. Casi todos los errores son
   verbos en pasado o presente que el modelo escribió sin la terminación ("record"
@@ -1896,7 +2087,13 @@ alineación en todo el audio (sección 6.12).
   el artículo reporta para el modelo base en esta dirección (sección 6.6). Es una
   sola frase.
 
+**En pocas palabras:** en inglés el modelo funciona de forma razonable con frases simples;
+la traducción no es confiable.
+
 #### 6.10.9 Silencio: alucinación
+
+**Qué analizamos:** qué escribe el modelo cuando no hay nadie hablando. Una **alucinación**
+es texto que el modelo produce sin que exista en el audio.
 
 Con 19 s de silencio el modelo no devolvió una cadena vacía: escribió 48 tokens
 que repiten una misma frase varias veces. Esto ocurrió igual en las dos corridas.
@@ -1910,6 +2107,10 @@ Dos observaciones:
   sección 4.4).
 
 La atención en este caso se ve en la sección 6.12.
+
+**En pocas palabras:** ante el silencio el modelo inventa texto y tarda mucho; conviene
+detectar la ausencia de voz antes de transcribir y desconfiar de las salidas con confianza
+baja.
 
 ### 6.11 Cómo reproducir las pruebas
 
@@ -1943,6 +2144,9 @@ el resumen `resumen.json` y todas las figuras. Reutiliza las funciones
 `inferir_con_atencion` y `figura_atencion` de `owsm_demo/`.
 
 ### 6.12 Análisis de la cross-attention
+
+**Qué analizamos:** a qué parte del audio mira el modelo cuando escribe cada palabra (la
+*cross-attention*, sección 5.7), y si eso permite entender sus aciertos y sus errores.
 
 Cada fila del mapa es un token generado y cada columna, un frame de 40 ms de H.
 Se observaron cuatro cosas.

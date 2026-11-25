@@ -243,7 +243,7 @@ def etapa_ruido(modelo, filas, carpeta_audios, salida, niveles):
             color="#D49A5A")
     ax.set_xlabel("Relación señal/ruido (dB; menor = más ruido)")
     ax.set_ylabel("WER (%)")
-    ax.set_title("WER de las 10 frases al añadir ruido blanco")
+    ax.set_title("WER de las frases al añadir ruido blanco")
     ax.set_ylim(bottom=0)
     fig.tight_layout()
     fig.savefig(salida / "p2_ruido.png", dpi=150)
