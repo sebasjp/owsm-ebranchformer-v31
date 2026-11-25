@@ -1906,6 +1906,11 @@ uv run --with jiwer --with num2words python scripts/evaluar.py --ruido 20 10 5 -
 uv run --with matplotlib --with numpy python scripts/graficar_resultados.py
 ```
 
+Los audios y el `referencias.csv` real no se publican (la voz es del autor y la
+referencia incluye fragmentos de un libro); en `audios/referencias.ejemplo.csv` hay
+una plantilla y las instrucciones están en `audios/README.md`. Los resultados
+numéricos de nuestra corrida están en `docs/resultados/`.
+
 `audios/referencias.csv` tiene una fila por audio con las columnas `archivo`, `tipo`
 (`frase`, `largo`, `ingles`, `traduccion`, `silencio`), `idioma`, `tarea`,
 `figura` (1 para guardar sus mapas de atención), `referencia` y `leer` (texto
