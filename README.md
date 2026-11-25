@@ -515,7 +515,9 @@ flowchart TD
    generan **del mismo texto**, con la misma fórmula de la sección 3.5, pero con
    una máscara causal M que se suma antes del softmax:
 
-   $$\text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}$$
+   ```math
+   \text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}
+   ```
 
    donde Q = SW<sub>Q</sub>, K = SW<sub>K</sub> y V = SW<sub>V</sub>. Como
    e<sup>−∞</sup> = 0, el token *i* solo puede mirar los tokens 1 a *i*: nunca
