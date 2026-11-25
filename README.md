@@ -21,24 +21,7 @@ Proyecto final — Procesamiento de Datos Secuenciales
 
 ## 1. Resumen
 
-Este trabajo estudia e implementa la inferencia de OWSM v3.1 [1], un modelo
-abierto de voz a texto al estilo de Whisper [2] que combina un encoder
-E-Branchformer [4] con un decoder Transformer. Usamos el modelo base (101M
-parámetros) con los pesos publicados por los autores y el *toolkit* ESPnet [5],
-sin entrenar ni ajustar el modelo. Sobre él construimos una aplicación
-interactiva que graba o recibe un audio, lo transcribe o lo traduce según el
-idioma y la tarea indicados en el *prompt*, y muestra los pesos de la
-*cross-attention* del decoder (6 capas × 6 cabezas), es decir, a qué instantes
-del audio mira el modelo para escribir cada token. En el marco teórico se
-explica el recorrido completo del audio al texto: el espectrograma log-Mel, el
-encoder con sus ramas global y local, la creación de los tensores Q, K y V, el
-formato multitarea con tokens especiales y la decodificación con *beam search*.
-La aplicación funciona de extremo a extremo en CPU: en nuestra prueba, una
-frase de 3.7 s en español se transcribió correctamente en 21 s, incluyendo
-el *beam search* y la extracción de la atención. Según las métricas
-publicadas, el modelo base es el más rápido de su familia y supera en promedio
-a Whisper base en reconocimiento en inglés, pero es débil en identificación de
-idioma, traducción y audio largo, limitaciones que analizamos en la sección 6.
+> _Pendiente: se escribe al final, cuando estén los resultados._
 
 ---
 
@@ -188,7 +171,9 @@ flowchart LR
    espectrales en los bordes. Para suavizarlos, cada frame se multiplica por una
    función de ventana; OWSM usa la ventana de Hann:
 
-   $$w(n) = 0.5 - 0.5\cos\left(\frac{2\pi n}{N-1}\right)$$
+   ```math
+   w(n) = 0.5 - 0.5\cos\left(\frac{2\pi n}{N-1}\right)
+   ```
 
    Este factor lleva los bordes a cero y mantiene intacta la amplitud del audio
    en la mitad del frame.
@@ -197,7 +182,9 @@ flowchart LR
    FFT a cada frame para pasar del dominio del tiempo al dominio de la
    frecuencia, y se calcula su espectro de potencia:
 
-   $$P_i = |\mathrm{FFT}(x_i)|^2$$
+   ```math
+   P_i = |\mathrm{FFT}(x_i)|^2
+   ```
 
    Para la FFT, cada frame de 400 muestras se completa con ceros hasta
    N<sub>FFT</sub> = 512, una potencia de 2.
@@ -206,7 +193,9 @@ flowchart LR
    frecuencias bajas que en altas. Por eso, las frecuencias se agrupan en 80
    bandas siguiendo la escala Mel, que suele definirse como:
 
-   $$m = 2595 \log_{10}\left(1 + \frac{f}{700}\right)$$
+   ```math
+   m = 2595 \log_{10}\left(1 + \frac{f}{700}\right)
+   ```
 
    Las bandas son estrechas en los graves y anchas en los agudos, entre 0 y
    8 kHz. ESPnet usa la variante de Slaney de esta escala: lineal por debajo de
@@ -215,7 +204,9 @@ flowchart LR
 5. **Logaritmo.** Se aplica el logaritmo a la energía de cada banda, porque el
    oído también percibe la intensidad de forma logarítmica:
 
-   $$\text{log-Mel} = \log(E_{mel} + \varepsilon)$$
+   ```math
+   \text{log-Mel} = \log(E_{mel} + \varepsilon)
+   ```
 
    donde ε es un valor muy pequeño que evita calcular log(0).
 
@@ -260,7 +251,9 @@ flowchart LR
    imagen y produce su propio mapa. Con *stride* 2, cada filtro avanza de dos en
    dos, por lo que cada capa reduce el tiempo y la frecuencia a la mitad:
 
-   $$\text{salida} = \left\lfloor \frac{\text{entrada} - \text{kernel}}{\text{stride}} \right\rfloor + 1$$
+   ```math
+   \text{salida} = \left\lfloor \frac{\text{entrada} - \text{kernel}}{\text{stride}} \right\rfloor + 1
+   ```
 
    | | Tiempo | Frecuencia |
    |---|---|---|
@@ -278,7 +271,9 @@ flowchart LR
    entrenamiento tipo Whisper el audio siempre dura 30 s, los autores usan la
    codificación **sinusoidal absoluta** [1], la misma del Transformer original:
 
-   $$PE_{(pos,\,2i)} = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad PE_{(pos,\,2i+1)} = \cos\left(\frac{pos}{10000^{2i/d}}\right)$$
+   ```math
+   PE_{(pos,\,2i)} = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad PE_{(pos,\,2i+1)} = \cos\left(\frac{pos}{10000^{2i/d}}\right)
+   ```
 
    con d = 384. Antes de sumarla, ESPnet multiplica la entrada por √d.
 
@@ -354,12 +349,16 @@ flowchart TD
    *keys* (K) y *values* (V) se generan a partir de esa misma Z, multiplicándola
    por tres matrices de pesos aprendidas:
 
-   $$Q = ZW_Q, \qquad K = ZW_K, \qquad V = ZW_V$$
+   ```math
+   Q = ZW_Q, \qquad K = ZW_K, \qquad V = ZW_V
+   ```
 
    Cada frame compara su *query* con las *keys* de todos los frames; el
    resultado se normaliza con softmax y se usa para ponderar los *values*:
 
-   $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+   ```math
+   \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+   ```
 
    La matriz de pesos softmax(QKᵀ/√d<sub>k</sub>) es de 749 × 749: indica
    cuánto mira cada frame a cada uno de los demás. Este cálculo se hace en
@@ -440,7 +439,9 @@ resultado:   "hola"
 esta regla, dan el texto correcto. CTC no necesita saber cuál es la verdadera:
 **suma la probabilidad de todos los caminos** que producen la transcripción y maximiza esa suma:
 
-$$P(y \mid x) = \sum_{\pi \,\to\, y} \; \prod_{t=1}^{T} p_t(\pi_t), \qquad \mathcal{L}_{CTC} = -\log P(y \mid x)$$
+```math
+P(y \mid x) = \sum_{\pi \,\to\, y} \; \prod_{t=1}^{T} p_t(\pi_t), \qquad \mathcal{L}_{CTC} = -\log P(y \mid x)
+```
 
 donde π es un camino, con un símbolo por frame. La suma sobre todos los caminos
 se calcula eficientemente con programación dinámica. El texto de referencia se
@@ -457,7 +458,9 @@ copia completo (749 × 384) hacia dos destinos independientes, la cabeza CTC y l
 *cross-attention* del decoder. Las dos ramas no se pasan información; se
 relacionan a través de la pérdida total:
 
-$$\mathcal{L} = \lambda_1 \, \mathcal{L}_{CTC} + \lambda_2 \, \mathcal{L}_{att}, \qquad \lambda_1 + \lambda_2 = 1$$
+```math
+\mathcal{L} = \lambda_1 \, \mathcal{L}_{CTC} + \lambda_2 \, \mathcal{L}_{att}, \qquad \lambda_1 + \lambda_2 = 1
+```
 
 Para OWSM v3.1, λ<sub>1</sub> = 0.3 y λ<sub>2</sub> = 0.7 (valor `ctc_weight: 0.3`
 en la configuración publicada del modelo). En la retropropagación, los gradientes
@@ -532,7 +535,9 @@ flowchart TD
    generan **del mismo texto**, con la misma fórmula de la sección 3.5, pero con
    una máscara causal M que se suma antes del softmax:
 
-   $$\text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}$$
+   ```math
+   \text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}
+   ```
 
    donde Q = SW<sub>Q</sub>, K = SW<sub>K</sub> y V = SW<sub>V</sub>. Como
    e<sup>−∞</sup> = 0, el token *i* solo puede mirar los tokens 1 a *i*: nunca
@@ -543,9 +548,13 @@ flowchart TD
 4. **Cross-attention.** Es el **único punto donde el texto consulta el audio**.
    Las *queries* salen del texto y las *keys* y *values* salen de H:
 
-   $$Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)$$
+   ```math
+   Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)
+   ```
 
-   $$A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749), \qquad \text{salida} = AV \;\; (L \times 384)$$
+   ```math
+   A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749), \qquad \text{salida} = AV \;\; (L \times 384)
+   ```
 
    donde S son los estados del decoder después de la *self-attention*. Cada
    token pregunta (Q): "según lo que llevo escrito, ¿qué parte del audio necesito
@@ -579,7 +588,9 @@ En el entrenamiento, el decoder recibe la transcripción correcta completa y
 predice todas las posiciones a la vez (*teacher forcing*). Su pérdida es la
 entropía cruzada entre la predicción y el token correcto en cada posición:
 
-$$P(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid y_{<i},\, H\right), \qquad \mathcal{L}_{att} = -\sum_{i=1}^{N} \log p\left(y_i \mid y_{<i},\, H\right)$$
+```math
+P(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid y_{<i},\, H\right), \qquad \mathcal{L}_{att} = -\sum_{i=1}^{N} \log p\left(y_i \mid y_{<i},\, H\right)
+```
 
 donde y<sub><i</sub> son los tokens anteriores a *i* y N es la longitud del
 texto. Esta es la L<sub>att</sub> que pesa 0.7 en la pérdida total (sección
@@ -661,7 +672,9 @@ Todo, incluidos los tokens de control, se predice de forma autorregresiva con
 el mismo decoder [3]. Durante la inferencia nosotros escribimos el *prompt* y el
 modelo continúa desde ahí:
 
-$$p(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid \underbrace{\texttt{<sos>}, \texttt{<spa>}, \texttt{<asr>}, \texttt{<notimestamps>}}_{\text{prompt}},\; y_{<i},\; H\right)$$
+```math
+p(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid \underbrace{\texttt{<sos>}, \texttt{<spa>}, \texttt{<asr>}, \texttt{<notimestamps>}}_{\text{prompt}},\; y_{<i},\; H\right)
+```
 
 Los IDs concretos de cada token y cómo se construye el *prompt* en nuestro
 código están en la sección 5.5.
@@ -738,7 +751,9 @@ flowchart TD
    candidatos y conserva solo las *k* mejores del total. El puntaje de una
    hipótesis es la suma de las log-probabilidades de sus tokens:
 
-   $$\text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)$$
+   ```math
+   \text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)
+   ```
 
    donde se usan logaritmos para sumar en vez de multiplicar probabilidades muy
    pequeñas. Whisper usa *k* = 5 porque reduce los bucles de repetición [2], y
@@ -906,7 +921,9 @@ Como se vio en la sección 3.6, el modelo tiene dos salidas sobre H: la cabeza C
 y el decoder. En inferencia, ESPnet puede usarlas por separado o combinarlas. Para
 cada hipótesis de texto *y* calcula un puntaje:
 
-$$\text{score}(y) = (1 - \lambda)\,\log p_{att}(y \mid H) + \lambda\,\log p_{CTC}(y \mid H)$$
+```math
+\text{score}(y) = (1 - \lambda)\,\log p_{att}(y \mid H) + \lambda\,\log p_{CTC}(y \mid H)
+```
 
 | λ (`ctc_weight`) | Búsqueda | Quién decide el texto |
 |---|---|---|
@@ -1246,7 +1263,9 @@ flowchart TD
    los puntajes y conserva solo las 5 mejores del total. El puntaje de una
    hipótesis es la suma de las log-probabilidades de sus tokens:
 
-   $$\text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)$$
+   ```math
+   \text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)
+   ```
 
 4. **Fin de la búsqueda.** Una hipótesis termina cuando genera `<eos>`. La
    búsqueda se detiene cuando no quedan hipótesis abiertas, cuando la regla de
@@ -1314,9 +1333,13 @@ flowchart TD
    el beam search, así que la atención resultante es la misma que produjo el
    texto. En cada capa, la *cross-attention* calcula:
 
-   $$Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)$$
+   ```math
+   Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)
+   ```
 
-   $$A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749)$$
+   ```math
+   A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749)
+   ```
 
    donde S son los estados del decoder después de su *self-attention* (uno por
    token) y L es el número de tokens. Las *queries* vienen del texto; las *keys*
