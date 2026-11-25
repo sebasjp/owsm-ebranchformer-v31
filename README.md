@@ -1663,8 +1663,7 @@ prompt de texto previo (`text_prev`) con el modelo base.
 
 ### 6.10 Resultados de nuestras pruebas de inferencia
 
-Hasta ahora, el repositorio tiene documentada una prueba de la aplicación, con su
-captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
+La primera prueba documentada de la aplicación, con su captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
 
 | Campo | Valor |
 |---|---|
@@ -1690,8 +1689,9 @@ captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
    Pero el modelo no procesa 3.7 s: rellena con silencio hasta 30 s (sección
    5.4), así que el encoder trabaja siempre sobre 749 frames. Medido sobre la
    ventana real, el costo es 21.18 / 30 ≈ **0.71 s por segundo de audio**. Por
-   eso el RTF de un audio corto siempre parece alto: el costo del encoder es casi
-   fijo.
+   eso el RTF de un audio corto parece alto. (Esta explicación se corrige en la
+   sección 6.10.5: con más mediciones, el tiempo depende sobre todo de los
+   tokens generados.)
 
 3. **Diferencias con la velocidad del artículo.** El artículo mide en una GPU
    A40, con decodificación *greedy* y sin extraer la atención. Nuestra medición
@@ -1704,114 +1704,288 @@ captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
    seguros con algunos dudosos; la tabla de tokens de la interfaz permite ver
    cuáles son.
 
-5. **Sin WER propio todavía.** La prueba no registró la frase que se dijo
-   realmente, así que no se puede calcular el error. Si la frase pronunciada fue
-   exactamente "vamos a sacar cinco en esta tarea", el WER de esta prueba sería
-   0 %. Como referencia, el artículo reporta un 18.5 % para el modelo base en
-   español leído (sección 6.5).
+5. **Sin WER propio en esa prueba.** No se registró la frase que se dijo realmente,
+   así que no se pudo calcular el error. Se resuelve en las pruebas con
+   referencia de las secciones siguientes.
 
-**Pruebas pendientes para completar esta sección:**
+#### 6.10.1 Diseño de las pruebas con referencia
 
-- [ ] Grabar entre 5 y 10 audios propios con su transcripción de referencia y
-      calcular el WER y el CER.
-- [ ] Repetir una misma prueba dos veces para separar la primera ejecución
-      (carga) de las siguientes.
-- [ ] Medir el RTF con audios de distinta duración (5, 15 y 30 s) y verificar
-      que el tiempo es casi constante.
-- [ ] Probar inglés (`<eng>`) y una traducción (`<st_eng>`) y comparar con las
-      tablas 6.4 y 6.6.
-- [ ] Agregar capturas de los mapas de cross-attention y analizar el patrón
-      diagonal.
+Para medir el error se grabaron 13 audios con la voz del autor, en un computador
+Windows sin GPU, con `ctc_weight = 0` y *beam search* de 5 (la configuración de la
+aplicación). El texto de referencia son fragmentos de la novela *Noches blancas*
+de Dostoievski (traducción al español de una edición digital libre), leídos en
+voz alta; los fragmentos y los audios no se publican en el repositorio.
 
-### 6.11 Protocolo para completar las pruebas propias
+| Grupo | Audios | Contenido |
+|---|---|---|
+| Frases cortas | `corta01` a `corta04` | 9 a 10 palabras |
+| Frases medias | `media01` a `media04` | 13 a 16 palabras |
+| Largo | `larga` (26 s), `muylarga` (42 s) | 68 y 109 palabras; `muylarga` supera la ventana de 30 s |
+| Inglés | `ingles01` | Una frase de 13 palabras |
+| Traducción | `traduccion01` | Una frase en español pedida con `<st_eng>` |
+| Silencio | `silencio` (19 s) | Sin hablar |
 
-Para que los resultados sean comparables con las tablas anteriores, cada prueba
-debe registrar los mismos campos que la de la sección 6.10 y llevar su captura de
-pantalla (la barra lateral muestra fecha, dispositivo y modelo).
+Las pruebas con ruido y de *beam search* usan solo las 8 frases cortas y medias
+(94 palabras). Antes de calcular el error, ambos textos se normalizan: minúsculas,
+sin puntuación y números escritos con palabras. Todo se ejecutó con
+`scripts/evaluar.py` (sección 6.11) y las cifras salen de `resultados/`.
 
-| Caso | Qué se quiere ver |
+#### 6.10.2 Precisión: WER y CER
+
+| Audio | Duración (s) | Palabras ref. | Tokens | Tiempo (s) | RTF | Confianza | WER | CER |
+|---|---|---|---|---|---|---|---|---|
+| corta01 | 11.1 | 9 | 13 | 3.7 | 0.33 | 0.80 | 22.2 % | 5.8 % |
+| corta02 | 6.6 | 9 | 17 | 5.0 | 0.75 | 0.68 | 44.4 % | 9.1 % |
+| corta03 | 5.9 | 10 | 13 | 4.6 | 0.78 | 0.79 | 20.0 % | 4.0 % |
+| corta04 | 6.2 | 9 | 20 | 5.6 | 0.90 | 0.76 | 33.3 % | 12.0 % |
+| media01 | 7.5 | 13 | 21 | 4.8 | 0.64 | 0.87 | 7.7 % | 1.4 % |
+| media02 | 7.1 | 15 | 26 | 6.1 | 0.86 | 0.73 | 33.3 % | 8.6 % |
+| media03 | 7.2 | 16 | 27 | 6.9 | 0.96 | 0.71 | 31.2 % | 12.5 % |
+| media04 | 6.5 | 13 | 23 | 6.9 | 1.05 | 0.66 | 23.1 % | 9.4 % |
+| larga | 26.3 | 68 | 110 | 24.4 | 0.93 | 0.71 | 26.5 % | 6.0 % |
+| muylarga | 42.2 | 109 | 119 | 24.8 | 0.59 | 0.77 | 46.8 % (≈ 24.7 %) | 34.7 % |
+| ingles01 | 7.4 | 13 | 15 | 5.9 | 0.80 | 0.85 | 0.0 % | 0.0 % |
+
+![WER por frase](docs/figuras/p1_wer_por_frase.png)
+
+**Resultados:**
+
+1. **WER global de las 8 frases: 26.6 %** (25 palabras erradas de 94): 29.7 % en las
+   cortas y 24.6 % en las medias. El artículo reporta 18.5 % para el modelo base en
+   español leído (sección 6.5). La diferencia es plausible, pero con solo 94
+   palabras el intervalo de confianza es de unos ±9 puntos, así que no se puede
+   afirmar que sea mayor ni menor. Además, el texto es una traducción literaria
+   con vocabulario poco frecuente y la voz y el micrófono son distintos de los del
+   conjunto de prueba del artículo.
+2. **El CER es mucho menor que el WER** (1.4 % a 12.5 %): las palabras erradas
+   suelen parecerse en sonido a la correcta. Un ejemplo es "adiviné", que el modelo
+   escribió "a diviner". Un error de una letra o de una división de palabra cuenta
+   como palabra entera en el WER.
+3. **La confianza anticipa el error.** Entre las 8 frases, la confianza media por
+   token y el WER tienen una correlación de −0.73: las frases con confianza menor
+   (corta02, 0.68; media04, 0.66) son de las más erradas, y la de mayor confianza
+   (media01, 0.87) tiene el WER más bajo (7.7 %). Con 8 puntos es una tendencia,
+   no una prueba.
+4. **`muylarga`.** El WER crudo (46.8 %) está inflado: el modelo solo procesó los
+   primeros 30 s (sección 6.10.7). Contra la parte de la referencia que cabe en
+   ese tiempo (las primeras 77 de 109 palabras, suponiendo ritmo constante), el WER
+   es de ≈ 24.7 %, parecido al de `larga`.
+
+#### 6.10.3 Efecto del ruido
+
+Se sumó ruido blanco gaussiano a las 8 frases con una relación señal/ruido (SNR)
+dada. Una SNR menor significa más ruido.
+
+| Condición | WER |
 |---|---|
-| Español, frase corta, voz propia | WER de referencia y patrón de atención en un caso fácil. |
-| Español, frase larga (≈ 25 s) | Si el WER y el RTF cambian con la duración (el costo del encoder es casi fijo). |
-| Español con ruido de fondo | Cuánto empeora el WER y cómo cambia la confianza por token. |
-| Inglés (`<eng>`) | Comparar con las tablas 6.4 (WER en inglés). |
-| Traducción español → inglés (`<st_eng>`) | Revisión cualitativa de la salida; el artículo reporta BLEU 10.0 para el base (6.6). |
-| Audio de más de 30 s | Confirmar que solo se procesan los primeros 30 s (sección 5.4). |
-| Silencio o música sin voz | Ver qué genera el modelo cuando no hay habla y cómo se ve la atención. |
+| Sin ruido | 26.6 % |
+| SNR 20 dB | 36.2 % |
+| SNR 10 dB | 52.1 % |
+| SNR 5 dB | 67.0 % |
 
-El WER y el CER se pueden calcular con la biblioteca `jiwer`. Conviene normalizar
-antes ambos textos (minúsculas, sin puntuación), como hacen los autores con el
-normalizador de Whisper (sección 6.2), para no contar como error un cambio de
-formato:
+![WER contra ruido](docs/figuras/p2_ruido.png)
 
-```python
-import re
-import jiwer
+El WER sube a medida que baja la SNR: de 26.6 % a 67.0 % con SNR de 5 dB. Es
+una prueba con ruido sintético y blanco, que es más fácil de reproducir que el de
+un lugar real pero no representa por sí sola un ambiente ruidoso real.
 
-def normalizar(texto: str) -> str:
-    texto = texto.lower()
-    texto = re.sub(r"[^\w\s]", "", texto)   # quita puntuación
-    return re.sub(r"\s+", " ", texto).strip()
+#### 6.10.4 *Beam search* de 5 contra *greedy*
 
-referencia = "Vamos a sacar cinco en esta tarea."
-salida = "vamos a sacar cinco en esta tarea"
-print("WER:", jiwer.wer(normalizar(referencia), normalizar(salida)))
-print("CER:", jiwer.cer(normalizar(referencia), normalizar(salida)))
+| Beam | WER (8 frases) | Tiempo medio por frase |
+|---|---|---|
+| 1 (*greedy*) | 33.0 % | 2.2 s |
+| 5 | 26.6 % | 5.2 s |
+
+![Beam search](docs/figuras/p3_beam.png)
+
+El *beam search* de 5 reduce el WER en 6.4 puntos (unas 6 palabras de 94) y
+cuesta unas 2.4 veces más tiempo. Con tan pocas palabras la diferencia es
+orientativa. Estos tiempos no incluyen la segunda pasada para leer la atención,
+por eso son menores que los de la tabla 6.10.2.
+
+#### 6.10.5 Tiempo de inferencia
+
+![Tiempo contra tokens](docs/figuras/p1_tiempo_vs_tokens.png)
+
+En los audios con voz, el tiempo de inferencia sigue casi una recta con los tokens
+que escribe el decoder: **≈ 1.8 s + 0.20 s por token**, con correlación de 0.99.
+Eso es coherente con el funcionamiento autorregresivo (sección 5.6): el
+encoder corre una sola vez y el decoder corre una vez por cada token.
+
+**Corrección a la sección 6.10.1 del análisis de la prueba inicial.** Allí se
+atribuyó el RTF alto al costo fijo del encoder. Nuestras mediciones muestran que
+la parte fija es pequeña (≈ 1.8 s en este computador) y que el tiempo depende sobre
+todo de la cantidad de tokens. Como los audios más largos también tienen más
+tokens, la duración y el tiempo están correlacionados (0.93), pero el tiempo se
+explica mejor por los tokens. El RTF de los audios cortos es alto porque el
+audio grabado tiene pocos segundos de habla, no por un costo fijo del encoder. En
+este computador el RTF de los audios con voz fue de 0.33 a 1.22, mucho menor
+que el 5.69 de la prueba inicial, que se hizo en otro equipo.
+
+![RTF por audio](docs/figuras/p1_rtf_sin_silencio.png)
+
+#### 6.10.6 Resumen de resultados propios
+
+| Medida | Valor |
+|---|---|
+| WER global, 8 frases con beam 5 | 26.6 % (94 palabras) |
+| Referencia del artículo, español, modelo base | 18.5 % (sección 6.5) |
+| WER con SNR de 20, 10 y 5 dB | 36.2 %, 52.1 % y 67.0 % |
+| WER con *greedy* | 33.0 % |
+| Tiempo medio con voz y beam 5 | 8.6 s por audio (RTF medio 0.82, 12 audios con voz) |
+| Tiempo por token | ≈ 0.20 s, más ≈ 1.8 s fijos |
+
+#### 6.10.7 Audio de más de 30 s
+
+`muylarga` dura 42 s. ESPnet lo recortó a 30 s y lo avisó con una advertencia
+(*"trimming the input ... to 480000 samples"*), que también sugiere usar
+`decode_long()` para audios largos. El texto obtenido corresponde solo al
+tramo inicial. Esto confirma la limitación de la ventana fija de 30 s (sección
+6.7). Con `larga` (26 s), que sí cabe en la ventana, el modelo mantiene la
+alineación en todo el audio (sección 6.12).
+
+#### 6.10.8 Inglés y traducción
+
+- **Inglés** (`ingles01`, una frase de 13 palabras): WER de 0.0 % y confianza de
+  0.85. Es un solo ejemplo y no equivale a medir el WER en inglés; para eso está la
+  tabla del artículo (12.1 % de promedio para el modelo base, sección 6.4).
+- **Traducción de español a inglés** (`traduccion01`): la salida mezcla palabras
+  en inglés y español y no se entiende como una traducción; la confianza media
+  fue de 0.40, la más baja salvo el silencio. Es coherente con el BLEU de 10.0 que
+  el artículo reporta para el modelo base en esta dirección (sección 6.6).
+
+#### 6.10.9 Silencio: alucinación
+
+Con 19 s de silencio el modelo no devolvió una cadena vacía: escribió 48 tokens
+que repiten una misma frase varias veces. Dos observaciones:
+
+- La confianza media fue la más baja de todas (0.31), por lo que podría servir
+  para detectar este caso.
+- La inferencia tardó 191 s (RTF 9.95), frente a los 24 s de `larga`, que
+  escribió 110 tokens (más del doble). No medimos la causa, pero es compatible con que
+  la búsqueda no terminara pronto (`maxlenratio = 0` permite hasta 749 tokens,
+  sección 4.4).
+
+La atención en este caso se ve en la sección 6.12.
+
+### 6.11 Cómo reproducir las pruebas
+
+Los scripts están en `scripts/` y se ejecutan con `uv` desde la raíz del repositorio:
+
+```bash
+# 1. Grabar los audios, leyendo audios/referencias.csv (WAV mono de 16 kHz)
+uv run --with sounddevice --with soundfile python scripts/grabar.py
+
+# 2. Probar con un solo audio
+uv run --with jiwer --with num2words python scripts/evaluar.py --prueba
+
+# 3. Corrida completa: precisión, ruido y beam search
+uv run --with jiwer --with num2words python scripts/evaluar.py --ruido 20 10 5 --beams 1 5
+
+# 4. Gráficas adicionales (tiempo contra tokens, RTF)
+uv run --with matplotlib --with numpy python scripts/graficar_resultados.py
 ```
 
-Con pocas frases el WER es muy ruidoso: una palabra errada en una frase de 7
-palabras ya es un 14 %. Por eso se debe reportar junto con el número de palabras
-de la referencia.
+`audios/referencias.csv` tiene una fila por audio con las columnas `archivo`, `tipo`
+(`frase`, `largo`, `ingles`, `traduccion`, `silencio`), `idioma`, `tarea`,
+`figura` (1 para guardar sus mapas de atención), `referencia` y `leer` (texto
+a leer cuando difiere de la referencia, como en la traducción). El script genera
+en `resultados/` las tablas `p1_resultados.csv`, `p2_ruido.csv` y `p3_beam.csv`,
+el resumen `resumen.json` y todas las figuras. Reutiliza las funciones
+`inferir_con_atencion` y `figura_atencion` de `owsm_demo/`.
 
-### 6.12 Análisis esperado de la cross-attention
+### 6.12 Análisis de la cross-attention
 
-Esta subsección es una hipótesis que debe confirmarse o corregirse con las
-capturas de las pruebas propias. Cada fila del mapa es un token generado y cada
-columna, un frame de 40 ms de H (sección 5.7):
+Cada fila del mapa es un token generado y cada columna, un frame de 40 ms de H.
+Se observaron cuatro cosas.
 
-- **Patrón diagonal en transcripción.** Las palabras se escriben en el orden en
-  que se dijeron, así que cada token debería mirar el tramo de audio donde se
-  pronunció.
-- **Cabezas distintas.** La comparación de las 6 cabezas de una capa permite ver
-  cuáles se alinean con el habla y cuáles reparten su atención de forma difusa.
-- **Tokens especiales y puntuación.** `<eos>` y la puntuación no corresponden a un
-  sonido concreto, así que se espera que miren el final del habla o zonas de
-  silencio.
-- **Confianza.** La tabla de probabilidades por token muestra dónde duda el
-  decoder; se espera que los tokens de probabilidad baja coincidan con las
-  palabras mal reconocidas.
-- **Verificación visual.** Al comparar el log-Mel de arriba con el mapa de abajo,
-  la atención debería caer sobre los instantes con energía de voz.
+**1. En el habla, la atención sigue el orden del audio.** El mapa tiene un patrón
+diagonal claro: cada token mira el tramo donde se pronunció esa palabra.
+
+![Atención en una frase media](docs/figuras/atencion_media01.png)
+
+En `larga` la diagonal se mantiene a lo largo de los 26 s y los tokens de puntuación
+caen en las pausas del espectrograma.
+
+![Atención en un audio largo](docs/figuras/atencion_larga.png)
+
+**2. Los errores se ven en el mapa.** En `corta01`, los tokens de "a" y "divi"
+(que reemplazan "adiviné") miran justo el tramo en que se dijo esa palabra: el
+modelo atiende al lugar correcto y se equivoca al escribir.
+
+![Atención en corta01](docs/figuras/atencion_corta01.png)
+
+**3. Las capas y las cabezas se especializan.** Para cada capa y cabeza se midió
+la correlación de Spearman entre el orden de los tokens y el orden de los frames
+donde más atienden (1 es una diagonal perfecta), promediada sobre los 11
+audios con voz. Esta medida solo comprueba el orden, no que el pico caiga
+exactamente en el lugar correcto.
+
+![Diagonalidad por capa y cabeza](docs/figuras/p1_diagonalidad.png)
+
+| Capa | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| Diagonalidad media | 0.26 | 0.61 | 0.61 | 0.90 | 0.91 | 0.89 |
+
+12 de las 18 cabezas de las capas 4 a 6 superan 0.9, frente a 3 de las 18 de las
+capas 1 a 3. Las últimas capas son las que alinean el texto con el audio, y las
+primeras atienden de forma más dispersa. Dentro de una misma capa también hay
+diferencias: en la capa 6, la cabeza 2 reparte la atención de forma difusa y las
+demás son diagonales.
+
+![Cabezas de la capa 6](docs/figuras/cabezas_media01_capa6.png)
+
+![Cabezas de la capa 1](docs/figuras/cabezas_media01_capa1.png)
+
+No medimos por qué las primeras capas no se alinean con el audio; es un
+hallazgo descriptivo.
+
+**4. Sin voz, la atención pierde la alineación.** En el silencio no hay diagonal:
+la atención se concentra en los primeros frames del audio (menos de 0.3 s) y en un
+chasquido cerca de los 15 s, mientras el decoder repite la misma frase.
+
+![Atención en el silencio](docs/figuras/atencion_silencio.png)
+
+El patrón diagonal puede usarse como señal de que el texto corresponde al audio.
+Su ausencia, junto con una confianza baja, delata una alucinación.
 
 ### 6.13 Limitaciones
 
-- **Ventana fija de 30 s.** La aplicación solo procesa los primeros 30 s. En audio
-  largo el modelo también rinde peor (sección 6.7).
-- **Pocos datos por idioma.** El modelo base llega al 18.5 % de WER en español y
-  supera el 44 % en portugués y polaco (sección 6.5). El límite es la cantidad de
-  datos, no la arquitectura.
-- **Traducción débil.** BLEU de 10.0 de español a inglés, y sin métrica publicada
-  para traducir a español, francés o portugués (sección 6.6).
+- **Ventana fija de 30 s.** Los audios más largos se recortan (`muylarga`: de 42 a
+  30 s) y el artículo muestra que el modelo rinde peor en audio largo (sección 6.7).
+- **Pocos datos por idioma.** El modelo base obtiene 18.5 % de WER en español leído
+  según el artículo, y 26.6 % en nuestra prueba pequeña. En portugués y polaco
+  supera el 44 % (sección 6.5). El límite son los datos, no la arquitectura.
+- **Sensibilidad al ruido.** Con SNR de 5 dB, el WER sube a 67.0 %.
+- **Traducción débil.** BLEU de 10.0 de español a inglés en el artículo, y salida
+  ininteligible en nuestra prueba (sección 6.10.8).
+- **Alucinación con silencio.** Escribe texto repetido, con confianza baja, y tardó
+  191 s (sección 6.10.9).
 - **Identificación de idioma poco fiable.** Solo el 41.9 % de exactitud en el base
   (sección 6.8), por eso la aplicación fija el idioma en el prompt.
-- **Velocidad en CPU.** El RTF es mayor que 1 en audios cortos por el relleno a
-  30 s (sección 6.10).
+- **Velocidad.** El tiempo depende de los tokens (≈ 0.20 s por token en nuestro
+  equipo, sin GPU) y no hay garantía de tiempo real.
+- **Alcance de las pruebas propias.** Una sola voz y un solo micrófono, 94 palabras
+  en las pruebas de precisión, ruido blanco sintético y un solo audio en inglés.
+  Las cifras son orientativas y no equivalen a evaluar en los conjuntos oficiales.
 - **Sin CTC en la inferencia.** Se usa `ctc_weight = 0` para poder explicar la
   salida con la cross-attention; la decodificación híbrida suele ser más robusta
   ante repeticiones u omisiones (sección 4.4).
-- **Alcance.** Solo inferencia con el modelo base: sin entrenamiento, sin ajuste
-  fino y sin evaluación en los conjuntos oficiales del artículo.
 
 ### 6.14 Posibles mejoras
 
-- Procesar audios largos por ventanas de 30 s, avanzando con las marcas de tiempo
-  que predice el modelo (sección 6.7).
-- Agregar a la interfaz un campo de texto de referencia para calcular el WER y el
-  CER, y un selector del tamaño del haz.
-- Probar la decodificación híbrida (`ctc_weight` mayor que 0) y comparar el WER con
+- **Audios largos:** usar `decode_long()`, que ESPnet sugiere en su advertencia, o
+  procesar por ventanas de 30 s avanzando con las marcas de tiempo (sección 6.7).
+- **Silencio:** detectar la ausencia de voz antes de decodificar y limitar la longitud
+  máxima (`maxlenratio` mayor que 0) para evitar tiempos como los 191 s observados.
+- **Confianza:** avisar al usuario cuando la confianza media sea baja (en nuestras
+  pruebas, 0.31 en el silencio y 0.40 en la traducción fallida).
+- **Interfaz:** agregar un campo de texto de referencia para calcular WER y CER, y un
+  selector del tamaño del haz.
+- **Decodificación híbrida:** probar `ctc_weight` mayor que 0 y comparar el WER con
   el de la atención sola.
-- Usar GPU o el modelo medium si se necesita mayor calidad, con los costos de
-  memoria de la sección 4.3.
+- **Modelo:** usar GPU o el modelo medium si se necesita mayor calidad, con los costos
+  de memoria de la sección 4.3.
 
 ---
 
