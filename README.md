@@ -2017,49 +2017,84 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
 
 ## 7. Conclusiones
 
-> _Borrador: las cifras vienen de la sección 6.10 y las del artículo, de las
-> secciones 6.4 a 6.8. Si cambian los resultados, hay que actualizar este texto._
+> _Borrador para revisar con el equipo. Resume las secciones 3 a 6: la arquitectura, lo
+> que implementamos, lo que dice el artículo y lo que medimos nosotros. Si cambia algún
+> resultado de la sección 6.10, hay que actualizar este texto._
 
-### 7.1 Sobre el modelo
+### 7.1 Sobre la arquitectura y el modelo
 
-OWSM v3.1 muestra que es posible reproducir un modelo de reconocimiento de voz estilo
-Whisper usando solo datos públicos y código abierto. Con un codificador E-Branchformer
-y un decodificador Transformer, la versión base (101 millones de parámetros) cabe en
-una computadora común y se puede usar sin GPU, como hicimos en la aplicación.
+- OWSM v3.1 conserva el diseño de Whisper (un Transformer encoder–decoder con tareas
+  indicadas por tokens especiales) y cambia solo el encoder, que pasa a ser un
+  E-Branchformer (sección 3.5). Cada bloque combina atención global con una rama local
+  (cgMLP). Los autores muestran que converge más rápido que el Transformer y el
+  Conformer (sección 6.3).
+- Es un modelo **abierto y liviano**: la versión base tiene 101 millones de parámetros,
+  se entrenó con datos públicos y corre en CPU. Es el más rápido de su tabla (3.67
+  veces), gracias al submuestreo de ×4 (40 ms por frame) y a un decoder pequeño
+  (sección 6.4).
+- En inglés, v3.1 supera en promedio a Whisper en los tres tamaños que se comparan
+  (12.1 frente a 12.8 en base) con unas 6 veces menos horas de inglés. El encoder
+  nuevo también mejora 3 de 4 tareas de comprensión del habla (sección 6.9).
 
-### 7.2 Lo que verificamos con pruebas propias
+### 7.2 Los límites que muestra el artículo
 
-- **Precisión en español:** WER de **20.7 %** en 36 frases (392 palabras, intervalo
-  de confianza de 15.7 a 25.8 %). El artículo reporta 18.5 %, que cae dentro del
-  intervalo: nuestros resultados son compatibles con los del artículo.
-- **Ruido:** el WER pasa de 20.7 % a 55.4 % con SNR de 5 dB. El modelo es sensible al
-  ruido.
-- **Silencio:** inventa texto repetido (alucinación) con confianza baja (0.31). La
-  confianza media sirve como alerta.
-- **Traducción:** débil. La salida de nuestra prueba no se entiende, de acuerdo con el
-  BLEU de 10.0 del artículo.
-- **Audios largos:** la ventana de 30 s recorta lo que sobra, y en un audio de 42 s
-  solo se procesó el tramo inicial.
-- **Cross-attention:** las capas 4 a 6 alinean cada token con el tramo de audio donde
-  se pronunció (14 de 18 cabezas con diagonalidad mayor que 0.9), lo que permite
-  explicar visualmente qué escuchó el modelo al escribir cada palabra.
-- **Tiempo:** crece con la cantidad de tokens (≈ 0.18 s por token en CPU), más una
-  parte fija de ≈ 2.2 s.
+- **Los datos pesan más que la arquitectura.** En español, el base tiene 18.5 % de WER
+  frente a 14.5 % de Whisper base, que se entrenó con 11.1 mil horas contra 2 mil
+  (sección 6.5). En portugués y polaco, con 0.3 mil horas, el WER pasa de 44 %.
+- **Traducción débil:** BLEU de 10.0 de español a inglés, y sin métrica publicada hacia
+  español (sección 6.6).
+- **Identificación de idioma poco fiable (41.9 %):** por eso nuestra aplicación pide el
+  idioma al usuario (sección 6.8).
+- **Audio largo:** el WER sube de 7.8 % a 9.6 % y queda lejos de Whisper base (5.3 %).
+  Por eso limitamos la aplicación a 30 s (sección 6.7).
+- **Sesgo contextual:** solo funciona desde el tamaño small; el base empeora con la lista
+  de palabras (sección 6.9).
+- **Escalar tiene rendimientos decrecientes:** de base a small el WER baja 3.6 puntos;
+  de small a medium, solo 0.8 (sección 6.4).
 
-### 7.3 Lo que no podemos concluir
+### 7.3 Lo que implementamos
+
+Sin entrenar ni ajustar nada, cargamos los pesos publicados con ESPnet (sección 4.3) y
+construimos una aplicación en Streamlit que recibe un audio, lo transcribe o traduce con
+*beam search* de 5 hipótesis y `ctc_weight = 0` (sección 4.4), y **muestra la
+cross-attention** del decoder (6 capas × 6 cabezas), extraída con una segunda pasada
+(sección 5.7). La aplicación funciona de extremo a extremo en CPU.
+
+### 7.4 Lo que verificamos con pruebas propias
+
+Probamos 44 audios con una sola voz (sección 6.10):
+
+- **Precisión en español:** WER de **20.7 %** en 36 frases (392 palabras; intervalo de
+  confianza de 15.7 a 25.8 %). El 18.5 % del artículo cae dentro del intervalo, así que
+  nuestros resultados son compatibles con él.
+- **Ruido:** el WER sube de 20.7 % a 55.4 % con SNR de 5 dB.
+- **Silencio:** el modelo inventa texto repetido, con confianza baja (0.31), que sirve
+  como alerta.
+- **Traducción:** la salida de nuestra prueba no se entiende, como sugiere el BLEU del
+  artículo.
+- **Audio de más de 30 s:** se recorta; solo se procesó el tramo inicial.
+- **Cross-attention:** las capas 4 a 6 alinean cada token con el tramo de audio donde se
+  pronunció (14 de 18 cabezas con diagonalidad mayor que 0.9). Esto permite explicar qué
+  escuchó el modelo al escribir cada palabra y ver dónde se equivoca (sección 6.12).
+- **Tiempo:** crece con los tokens generados (≈ 0.18 s por token en CPU, más ≈ 2.2 s
+  fijos).
+
+### 7.5 Lo que no podemos concluir
 
 - **Libro contra frases cotidianas:** el WER fue menor en las cotidianas (15.4 % contra
-  23.4 %), pero con nuestros datos esa diferencia no es concluyente.
-- **Beam search 5 contra greedy:** no encontramos diferencia clara de WER (20.7 %
-  contra 21.7 %), aunque beam 5 tarda unas 2.6 veces más.
-- **Inglés y traducción:** son muy pocas frases (4 y 1) para sacar cifras.
-- **Generalización:** una sola voz y un solo micrófono. No sabemos cómo cambiaría con
+  23.4 %), pero con nuestros datos la diferencia no es concluyente.
+- **Beam search 5 contra *greedy*:** sin diferencia clara de WER (20.7 % contra 21.7 %),
+  aunque beam 5 tarda unas 2.6 veces más.
+- **Inglés y traducción:** 4 frases y 1 frase, muy pocas para dar cifras.
+- **Generalización:** una sola voz y un solo micrófono; no sabemos cómo cambiaría con
   otras voces, acentos o ruido real.
 
-### 7.4 Posibles mejoras
+### 7.6 Cierre
 
-Procesar audios largos con ventanas de 30 s, detectar el silencio antes de decodificar
-y avisar al usuario cuando la confianza sea baja (sección 6.14).
+OWSM v3.1 base es una opción real para transcribir español claro sin GPU y permite
+inspeccionar por dentro cómo decide cada palabra. Sus puntos débiles (ruido,
+traducción, audio largo, silencio y poco español de entrenamiento) coinciden entre lo que
+reporta el artículo y lo que medimos. Las mejoras propuestas están en la sección 6.14.
 
 ---
 
