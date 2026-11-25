@@ -82,3 +82,50 @@ if mu:
               f"primeras {k} de {len(ref)} palabras (suponiendo ritmo constante): WER ≈ {w:.3f}")
     except ImportError:
         print("(instala jiwer para calcular el WER de muylarga sobre la parte procesada)")
+
+# --- libro contra frases cotidianas (WER global por grupo, con IC95 bootstrap por frase)
+import random
+
+def _grupo(f):
+    a = f["archivo"]
+    if a.startswith(("corta", "media")):
+        return "libro"
+    if a.startswith("diaria"):
+        return "cotidiano"
+    return None
+
+def _wer(rows):
+    e = sum(float(f["wer"]) * int(f["palabras_ref"]) for f in rows)
+    p = sum(int(f["palabras_ref"]) for f in rows)
+    return 100 * e / p
+
+grupos = {"libro": [], "cotidiano": []}
+for f in filas:
+    g = _grupo(f)
+    if g:
+        grupos[g].append(f)
+if grupos["cotidiano"]:
+    random.seed(1)
+    est = {}
+    for g, rows in grupos.items():
+        boot = sorted(_wer([random.choice(rows) for _ in rows]) for _ in range(5000))
+        est[g] = (_wer(rows), boot[125], boot[4875], sum(int(f["palabras_ref"]) for f in rows))
+        print(f"{g}: WER {est[g][0]:.1f} % (IC95 {est[g][1]:.1f}-{est[g][2]:.1f}), {est[g][3]} palabras")
+    dif = sorted(_wer([random.choice(grupos['libro']) for _ in grupos['libro']])
+                 - _wer([random.choice(grupos['cotidiano']) for _ in grupos['cotidiano']]) for _ in range(5000))
+    print(f"Diferencia libro - cotidiano: {est['libro'][0]-est['cotidiano'][0]:.1f} puntos (IC95 {dif[125]:.1f} a {dif[4875]:.1f})")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    xs_ = list(est)
+    vals = [est[g][0] for g in xs_]
+    err = [[est[g][0] - est[g][1] for g in xs_], [est[g][2] - est[g][0] for g in xs_]]
+    ax.bar(xs_, vals, yerr=err, capsize=6, color=["#C98B6B", "#6A9BC3"])
+    ax.axhline(18.5, color="#555", ls="--", lw=1)
+    ax.text(1.45, 19.2, "artículo: 18.5 %", ha="right", fontsize=8, color="#555")
+    for i, g in enumerate(xs_):
+        ax.text(i, 1.5, f"n = {est[g][3]} palabras", ha="center", fontsize=8, color="white")
+    ax.set_ylabel("WER (%)")
+    ax.set_ylim(0, 40)
+    ax.set_title("WER: frases del libro vs frases cotidianas\n(barras de error: IC 95 % por remuestreo de frases)")
+    fig.tight_layout()
+    fig.savefig(carpeta / "p1_libro_vs_cotidiano.png", dpi=150)
+    plt.close(fig)

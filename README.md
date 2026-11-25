@@ -1710,117 +1710,131 @@ La primera prueba documentada de la aplicación, con su captura de pantalla en [
 
 #### 6.10.1 Diseño de las pruebas con referencia
 
-Para medir el error se grabaron 13 audios con la voz del autor, en un computador
+Para medir el error se grabaron 44 audios con la voz del autor, en un computador
 Windows sin GPU, con `ctc_weight = 0` y *beam search* de 5 (la configuración de la
-aplicación). El texto de referencia son fragmentos de la novela *Noches blancas*
-de Dostoievski (traducción al español de una edición digital libre), leídos en
-voz alta; los fragmentos y los audios no se publican en el repositorio.
+aplicación). Hay dos tipos de texto de referencia, para poder comparar:
+
+- **Libro:** 24 frases de *Noches blancas* de Dostoievski (traducción al español de
+  una edición digital libre), de 6 a 15 palabras. Es lenguaje literario del siglo
+  XIX, con palabras poco frecuentes.
+- **Cotidiano:** 12 frases escritas por nosotros, de 8 a 12 palabras, sobre
+  situaciones de todos los días (café, reunión, bus, llaves).
+
+Los fragmentos del libro y los audios no se publican en el repositorio.
 
 | Grupo | Audios | Contenido |
 |---|---|---|
-| Frases cortas | `corta01` a `corta04` | 9 a 10 palabras |
-| Frases medias | `media01` a `media04` | 13 a 16 palabras |
+| Frases del libro | `corta01` a `corta12`, `media01` a `media12` | 24 frases, 256 palabras |
+| Frases cotidianas | `diaria01` a `diaria12` | 12 frases, 136 palabras |
 | Largo | `larga` (26 s), `muylarga` (42 s) | 68 y 109 palabras; `muylarga` supera la ventana de 30 s |
-| Inglés | `ingles01` | Una frase de 13 palabras |
+| Inglés | `ingles01` a `ingles04` | 4 frases de 10 a 13 palabras |
 | Traducción | `traduccion01` | Una frase en español pedida con `<st_eng>` |
 | Silencio | `silencio` (19 s) | Sin hablar |
 
-Las pruebas con ruido y de *beam search* usan solo las 8 frases cortas y medias
-(94 palabras). Antes de calcular el error, ambos textos se normalizan: minúsculas,
-sin puntuación y números escritos con palabras. Todo se ejecutó con
-`scripts/evaluar.py` (sección 6.11) y las cifras salen de `resultados/`.
+Las pruebas con ruido y de *beam search* usan las 36 frases (392 palabras). Antes de
+calcular el error, ambos textos se normalizan: minúsculas, sin puntuación y números
+escritos con palabras. Todo se ejecutó con `scripts/evaluar.py` (sección 6.11).
+
+Con pocas palabras, el WER cambia mucho de una muestra a otra. Por eso, en esta
+sección el WER global se acompaña de un **intervalo de confianza del 95 %**,
+calculado remuestreando frases completas (*bootstrap*, 5000 repeticiones).
 
 #### 6.10.2 Precisión: WER y CER
 
-| Audio | Duración (s) | Palabras ref. | Tokens | Tiempo (s) | RTF | Confianza | WER | CER |
-|---|---|---|---|---|---|---|---|---|
-| corta01 | 11.1 | 9 | 13 | 3.7 | 0.33 | 0.80 | 22.2 % | 5.8 % |
-| corta02 | 6.6 | 9 | 17 | 5.0 | 0.75 | 0.68 | 44.4 % | 9.1 % |
-| corta03 | 5.9 | 10 | 13 | 4.6 | 0.78 | 0.79 | 20.0 % | 4.0 % |
-| corta04 | 6.2 | 9 | 20 | 5.6 | 0.90 | 0.76 | 33.3 % | 12.0 % |
-| media01 | 7.5 | 13 | 21 | 4.8 | 0.64 | 0.87 | 7.7 % | 1.4 % |
-| media02 | 7.1 | 15 | 26 | 6.1 | 0.86 | 0.73 | 33.3 % | 8.6 % |
-| media03 | 7.2 | 16 | 27 | 6.9 | 0.96 | 0.71 | 31.2 % | 12.5 % |
-| media04 | 6.5 | 13 | 23 | 6.9 | 1.05 | 0.66 | 23.1 % | 9.4 % |
-| larga | 26.3 | 68 | 110 | 24.4 | 0.93 | 0.71 | 26.5 % | 6.0 % |
-| muylarga | 42.2 | 109 | 119 | 24.8 | 0.59 | 0.77 | 46.8 % (≈ 24.7 %) | 34.7 % |
-| ingles01 | 7.4 | 13 | 15 | 5.9 | 0.80 | 0.85 | 0.0 % | 0.0 % |
+| Grupo | Palabras | Palabras erradas | WER | IC 95 % |
+|---|---|---|---|---|
+| Libro, frases cortas (`corta`) | 100 | 24 | 24.0 % | |
+| Libro, frases medias (`media`) | 156 | 36 | 23.1 % | |
+| **Libro, total** | 256 | 60 | **23.4 %** | 17.7 a 29.2 |
+| **Cotidiano** | 136 | 21 | **15.4 %** | 7.0 a 24.5 |
+| **Las 36 frases** | 392 | 81 | **20.7 %** | 15.7 a 25.8 |
+| Largo (`larga`, 26 s) | 68 | | 26.5 % | |
+| Inglés (4 frases) | 44 | 5 | 11.4 % | |
 
 ![WER por frase](docs/figuras/p1_wer_por_frase.png)
 
+![Libro contra cotidiano](docs/figuras/p1_libro_vs_cotidiano.png)
+
 **Resultados:**
 
-1. **WER global de las 8 frases: 26.6 %** (25 palabras erradas de 94): 29.7 % en las
-   cortas y 24.6 % en las medias. El artículo reporta 18.5 % para el modelo base en
-   español leído (sección 6.5). La diferencia es plausible, pero con solo 94
-   palabras el intervalo de confianza es de unos ±9 puntos, así que no se puede
-   afirmar que sea mayor ni menor. Además, el texto es una traducción literaria
-   con vocabulario poco frecuente y la voz y el micrófono son distintos de los del
-   conjunto de prueba del artículo.
-2. **El CER es mucho menor que el WER** (1.4 % a 12.5 %): las palabras erradas
-   suelen parecerse en sonido a la correcta. Un ejemplo es "adiviné", que el modelo
-   escribió "a diviner". Un error de una letra o de una división de palabra cuenta
-   como palabra entera en el WER.
-3. **La confianza anticipa el error.** Entre las 8 frases, la confianza media por
-   token y el WER tienen una correlación de −0.73: las frases con confianza menor
-   (corta02, 0.68; media04, 0.66) son de las más erradas, y la de mayor confianza
-   (media01, 0.87) tiene el WER más bajo (7.7 %). Con 8 puntos es una tendencia,
-   no una prueba.
-4. **`muylarga`.** El WER crudo (46.8 %) está inflado: el modelo solo procesó los
+1. **WER global de las 36 frases: 20.7 %** (81 palabras erradas de 392), con un
+   intervalo de 15.7 a 25.8 %. El artículo reporta 18.5 % para el modelo base en
+   español leído (sección 6.5), que cae dentro del intervalo: **no podemos decir
+   que el modelo rinda peor ni mejor que lo que reporta el artículo.**
+2. **Libro contra cotidiano.** Con frases cotidianas el WER fue 15.4 %, frente a
+   23.4 % con las del libro, una diferencia de 8.0 puntos. Va en el sentido que
+   esperábamos (el vocabulario literario cuesta más), pero **el intervalo de la
+   diferencia va de −2.8 a 18.3 puntos**: con estos datos no se puede asegurar que
+   sea real. Además, el libro tiene palabras muy poco frecuentes en las que el
+   modelo falla ("abuelita", "sollozo", "niebla" salieron "vuelita", "soyoso",
+   "nieula"), pero también falló en palabras comunes ("hasta mañana" salió "esta
+   mañana"). Hay más frases cotidianas perfectas (5 de 12) que del libro (2 de 24).
+3. **El CER es menor que el WER** (5.0 % a 7.0 % de promedio contra 15 a 23 %): las
+   palabras erradas suelen parecerse en sonido a la correcta. Un error de una
+   letra cuenta como palabra entera en el WER.
+4. **La confianza anticipa el error, pero poco.** En las 36 frases, la confianza
+   media por token y el WER tienen una correlación de −0.43: las frases con más
+   confianza tienden a tener menos error, pero con mucha dispersión. Sirve como
+   señal de alerta, no como medida.
+5. **`muylarga`.** El WER crudo (46.8 %) está inflado: el modelo solo procesó los
    primeros 30 s (sección 6.10.7). Contra la parte de la referencia que cabe en
    ese tiempo (las primeras 77 de 109 palabras, suponiendo ritmo constante), el WER
    es de ≈ 24.7 %, parecido al de `larga`.
 
 #### 6.10.3 Efecto del ruido
 
-Se sumó ruido blanco gaussiano a las 8 frases con una relación señal/ruido (SNR)
+Se sumó ruido blanco gaussiano a las 36 frases con una relación señal/ruido (SNR)
 dada. Una SNR menor significa más ruido.
 
 | Condición | WER |
 |---|---|
-| Sin ruido | 26.6 % |
-| SNR 20 dB | 36.2 % |
-| SNR 10 dB | 52.1 % |
-| SNR 5 dB | 67.0 % |
+| Sin ruido | 20.7 % |
+| SNR 20 dB | 24.0 % |
+| SNR 10 dB | 40.6 % |
+| SNR 5 dB | 55.4 % |
 
 ![WER contra ruido](docs/figuras/p2_ruido.png)
 
-El WER sube a medida que baja la SNR: de 26.6 % a 67.0 % con SNR de 5 dB. Es
-una prueba con ruido sintético y blanco, que es más fácil de reproducir que el de
-un lugar real pero no representa por sí sola un ambiente ruidoso real.
+El WER sube a medida que baja la SNR: de 20.7 % a 55.4 % con SNR de 5 dB, es decir
+que con ese nivel de ruido el modelo se equivoca en más de la mitad de las
+palabras. Es ruido blanco sintético, fácil de reproducir pero distinto del ruido
+de un lugar real (voces, ventiladores, calle), así que las cifras son una guía y no
+una predicción para un ambiente concreto.
 
 #### 6.10.4 *Beam search* de 5 contra *greedy*
 
-| Beam | WER (8 frases) | Tiempo medio por frase |
+| Beam | WER (36 frases) | Tiempo medio por frase |
 |---|---|---|
-| 1 (*greedy*) | 33.0 % | 2.2 s |
-| 5 | 26.6 % | 5.2 s |
+| 1 (*greedy*) | 21.7 % | 1.8 s |
+| 5 | 20.7 % | 4.6 s |
 
 ![Beam search](docs/figuras/p3_beam.png)
 
-El *beam search* de 5 reduce el WER en 6.4 puntos (unas 6 palabras de 94) y
-cuesta unas 2.4 veces más tiempo. Con tan pocas palabras la diferencia es
-orientativa. Estos tiempos no incluyen la segunda pasada para leer la atención,
-por eso son menores que los de la tabla 6.10.2.
+La diferencia de WER es de 1 punto (unas 4 palabras de 392), pequeña frente al
+intervalo de ±5 puntos de la medición, así que **no hay evidencia de que el beam
+search de 5 mejore el resultado en este conjunto**. Sí cuesta unas 2.6 veces más
+tiempo. En una primera corrida, con solo 8 frases (94 palabras), la diferencia
+parecía de 6 puntos; con más datos desapareció. Esto muestra por qué hace falta una
+muestra grande antes de sacar conclusiones. Estos tiempos no incluyen la segunda
+pasada para leer la atención.
 
 #### 6.10.5 Tiempo de inferencia
 
 ![Tiempo contra tokens](docs/figuras/p1_tiempo_vs_tokens.png)
 
-En los audios con voz, el tiempo de inferencia sigue casi una recta con los tokens
-que escribe el decoder: **≈ 1.8 s + 0.20 s por token**, con correlación de 0.99.
-Eso es coherente con el funcionamiento autorregresivo (sección 5.6): el
+En los audios con voz (43 audios), el tiempo de inferencia sigue casi una recta con
+los tokens que escribe el decoder: **≈ 2.2 s + 0.18 s por token**, con correlación
+de 0.99. Es coherente con el funcionamiento autorregresivo (sección 5.6): el
 encoder corre una sola vez y el decoder corre una vez por cada token.
 
-**Corrección a la sección 6.10.1 del análisis de la prueba inicial.** Allí se
-atribuyó el RTF alto al costo fijo del encoder. Nuestras mediciones muestran que
-la parte fija es pequeña (≈ 1.8 s en este computador) y que el tiempo depende sobre
-todo de la cantidad de tokens. Como los audios más largos también tienen más
-tokens, la duración y el tiempo están correlacionados (0.93), pero el tiempo se
-explica mejor por los tokens. El RTF de los audios cortos es alto porque el
-audio grabado tiene pocos segundos de habla, no por un costo fijo del encoder. En
-este computador el RTF de los audios con voz fue de 0.33 a 1.22, mucho menor
-que el 5.69 de la prueba inicial, que se hizo en otro equipo.
+**Matiz sobre la sección anterior (prueba inicial).** El análisis de la primera
+prueba atribuye el RTF alto al costo fijo del encoder, que procesa siempre los
+30 s. Nuestras mediciones respaldan que existe una parte fija, pero pequeña en este
+equipo (≈ 2.2 s, frente a los ≈ 21 s de la prueba inicial) y que el resto depende
+de los tokens. Esa parte fija pesa mucho en audios muy cortos (`corta05`, de
+2.9 s, tuvo RTF 2.1) y poco en los largos. En general el RTF de los audios con voz
+fue de 0.3 a 2.1, con promedio de 0.98 (con la salvedad de que las pruebas se
+hicieron en un computador distinto al de la prueba inicial).
 
 ![RTF por audio](docs/figuras/p1_rtf_sin_silencio.png)
 
@@ -1828,12 +1842,13 @@ que el 5.69 de la prueba inicial, que se hizo en otro equipo.
 
 | Medida | Valor |
 |---|---|
-| WER global, 8 frases con beam 5 | 26.6 % (94 palabras) |
+| WER global, 36 frases con beam 5 | 20.7 % (392 palabras, IC 95 % 15.7 a 25.8) |
+| WER libro / cotidiano | 23.4 % / 15.4 % (diferencia no concluyente) |
 | Referencia del artículo, español, modelo base | 18.5 % (sección 6.5) |
-| WER con SNR de 20, 10 y 5 dB | 36.2 %, 52.1 % y 67.0 % |
-| WER con *greedy* | 33.0 % |
-| Tiempo medio con voz y beam 5 | 8.6 s por audio (RTF medio 0.82, 12 audios con voz) |
-| Tiempo por token | ≈ 0.20 s, más ≈ 1.8 s fijos |
+| WER con SNR de 20, 10 y 5 dB | 24.0 %, 40.6 % y 55.4 % |
+| WER con *greedy* | 21.7 % (sin diferencia clara con beam 5) |
+| Tiempo medio con voz y beam 5 | 6.2 s por audio (RTF medio 0.98, 43 audios) |
+| Tiempo por token | ≈ 0.18 s, más ≈ 2.2 s fijos |
 
 #### 6.10.7 Audio de más de 30 s
 
@@ -1846,24 +1861,29 @@ alineación en todo el audio (sección 6.12).
 
 #### 6.10.8 Inglés y traducción
 
-- **Inglés** (`ingles01`, una frase de 13 palabras): WER de 0.0 % y confianza de
-  0.85. Es un solo ejemplo y no equivale a medir el WER en inglés; para eso está la
-  tabla del artículo (12.1 % de promedio para el modelo base, sección 6.4).
+- **Inglés** (4 frases, 44 palabras): WER de 11.4 %. Casi todos los errores son
+  verbos en pasado o presente que el modelo escribió sin la terminación ("record"
+  por "recorded", "stage" por "stayed"), que quizás se debe a la pronunciación del
+  autor, hablante nativo de español; no lo comprobamos. Son pocas frases y una sola
+  voz, así que no equivale a medir el WER en inglés; para eso está la tabla del
+  artículo (12.1 % de promedio para el modelo base, sección 6.4).
 - **Traducción de español a inglés** (`traduccion01`): la salida mezcla palabras
   en inglés y español y no se entiende como una traducción; la confianza media
   fue de 0.40, la más baja salvo el silencio. Es coherente con el BLEU de 10.0 que
-  el artículo reporta para el modelo base en esta dirección (sección 6.6).
+  el artículo reporta para el modelo base en esta dirección (sección 6.6). Es una
+  sola frase.
 
 #### 6.10.9 Silencio: alucinación
 
 Con 19 s de silencio el modelo no devolvió una cadena vacía: escribió 48 tokens
-que repiten una misma frase varias veces. Dos observaciones:
+que repiten una misma frase varias veces. Esto ocurrió igual en las dos corridas.
+Dos observaciones:
 
 - La confianza media fue la más baja de todas (0.31), por lo que podría servir
   para detectar este caso.
-- La inferencia tardó 191 s (RTF 9.95), frente a los 24 s de `larga`, que
-  escribió 110 tokens (más del doble). No medimos la causa, pero es compatible con que
-  la búsqueda no terminara pronto (`maxlenratio = 0` permite hasta 749 tokens,
+- La inferencia tardó 176 s (RTF 9.1) frente a los 23 s de `larga`, que
+  escribió 110 tokens (más del doble). No medimos la causa, pero es compatible con
+  que la búsqueda no terminara pronto (`maxlenratio = 0` permite hasta 749 tokens,
   sección 4.4).
 
 La atención en este caso se ve en la sección 6.12.
@@ -1917,17 +1937,17 @@ modelo atiende al lugar correcto y se equivoca al escribir.
 
 **3. Las capas y las cabezas se especializan.** Para cada capa y cabeza se midió
 la correlación de Spearman entre el orden de los tokens y el orden de los frames
-donde más atienden (1 es una diagonal perfecta), promediada sobre los 11
-audios con voz. Esta medida solo comprueba el orden, no que el pico caiga
+donde más atienden (1 es una diagonal perfecta), promediada sobre los 42
+audios con voz (frases, largos e inglés). Esta medida solo comprueba el orden, no que el pico caiga
 exactamente en el lugar correcto.
 
 ![Diagonalidad por capa y cabeza](docs/figuras/p1_diagonalidad.png)
 
 | Capa | 1 | 2 | 3 | 4 | 5 | 6 |
 |---|---|---|---|---|---|---|
-| Diagonalidad media | 0.26 | 0.61 | 0.61 | 0.90 | 0.91 | 0.89 |
+| Diagonalidad media | 0.21 | 0.55 | 0.52 | 0.88 | 0.91 | 0.89 |
 
-12 de las 18 cabezas de las capas 4 a 6 superan 0.9, frente a 3 de las 18 de las
+14 de las 18 cabezas de las capas 4 a 6 superan 0.9, frente a 2 de las 18 de las
 capas 1 a 3. Las últimas capas son las que alinean el texto con el audio, y las
 primeras atienden de forma más dispersa. Dentro de una misma capa también hay
 diferencias: en la capa 6, la cabeza 2 reparte la atención de forma difusa y las
@@ -1954,19 +1974,20 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
 - **Ventana fija de 30 s.** Los audios más largos se recortan (`muylarga`: de 42 a
   30 s) y el artículo muestra que el modelo rinde peor en audio largo (sección 6.7).
 - **Pocos datos por idioma.** El modelo base obtiene 18.5 % de WER en español leído
-  según el artículo, y 26.6 % en nuestra prueba pequeña. En portugués y polaco
+  según el artículo, y 20.7 % en nuestras 36 frases (IC 95 % de 15.7 a 25.8). En portugués y polaco
   supera el 44 % (sección 6.5). El límite son los datos, no la arquitectura.
-- **Sensibilidad al ruido.** Con SNR de 5 dB, el WER sube a 67.0 %.
+- **Sensibilidad al ruido.** Con SNR de 5 dB, el WER sube a 55.4 %.
 - **Traducción débil.** BLEU de 10.0 de español a inglés en el artículo, y salida
   ininteligible en nuestra prueba (sección 6.10.8).
 - **Alucinación con silencio.** Escribe texto repetido, con confianza baja, y tardó
-  191 s (sección 6.10.9).
+  176 s (sección 6.10.9).
 - **Identificación de idioma poco fiable.** Solo el 41.9 % de exactitud en el base
   (sección 6.8), por eso la aplicación fija el idioma en el prompt.
-- **Velocidad.** El tiempo depende de los tokens (≈ 0.20 s por token en nuestro
+- **Velocidad.** El tiempo depende de los tokens (≈ 0.18 s por token en nuestro
   equipo, sin GPU) y no hay garantía de tiempo real.
-- **Alcance de las pruebas propias.** Una sola voz y un solo micrófono, 94 palabras
-  en las pruebas de precisión, ruido blanco sintético y un solo audio en inglés.
+- **Alcance de las pruebas propias.** Una sola voz y un solo micrófono, 392 palabras
+  en las pruebas de precisión (intervalo de ±5 puntos), ruido blanco sintético y
+  4 frases en inglés.
   Las cifras son orientativas y no equivalen a evaluar en los conjuntos oficiales.
 - **Sin CTC en la inferencia.** Se usa `ctc_weight = 0` para poder explicar la
   salida con la cross-attention; la decodificación híbrida suele ser más robusta
@@ -1977,7 +1998,7 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
 - **Audios largos:** usar `decode_long()`, que ESPnet sugiere en su advertencia, o
   procesar por ventanas de 30 s avanzando con las marcas de tiempo (sección 6.7).
 - **Silencio:** detectar la ausencia de voz antes de decodificar y limitar la longitud
-  máxima (`maxlenratio` mayor que 0) para evitar tiempos como los 191 s observados.
+  máxima (`maxlenratio` mayor que 0) para evitar tiempos como los 176 s observados.
 - **Confianza:** avisar al usuario cuando la confianza media sea baja (en nuestras
   pruebas, 0.31 en el silencio y 0.40 en la traducción fallida).
 - **Interfaz:** agregar un campo de texto de referencia para calcular WER y CER, y un
