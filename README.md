@@ -2017,6 +2017,49 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
 
 ## 7. Conclusiones
 
+> _Borrador: las cifras vienen de la sección 6.10 y las del artículo, de las
+> secciones 6.4 a 6.8. Si cambian los resultados, hay que actualizar este texto._
+
+### 7.1 Sobre el modelo
+
+OWSM v3.1 muestra que es posible reproducir un modelo de reconocimiento de voz estilo
+Whisper usando solo datos públicos y código abierto. Con un codificador E-Branchformer
+y un decodificador Transformer, la versión base (101 millones de parámetros) cabe en
+una computadora común y se puede usar sin GPU, como hicimos en la aplicación.
+
+### 7.2 Lo que verificamos con pruebas propias
+
+- **Precisión en español:** WER de **20.7 %** en 36 frases (392 palabras, intervalo
+  de confianza de 15.7 a 25.8 %). El artículo reporta 18.5 %, que cae dentro del
+  intervalo: nuestros resultados son compatibles con los del artículo.
+- **Ruido:** el WER pasa de 20.7 % a 55.4 % con SNR de 5 dB. El modelo es sensible al
+  ruido.
+- **Silencio:** inventa texto repetido (alucinación) con confianza baja (0.31). La
+  confianza media sirve como alerta.
+- **Traducción:** débil. La salida de nuestra prueba no se entiende, de acuerdo con el
+  BLEU de 10.0 del artículo.
+- **Audios largos:** la ventana de 30 s recorta lo que sobra, y en un audio de 42 s
+  solo se procesó el tramo inicial.
+- **Cross-attention:** las capas 4 a 6 alinean cada token con el tramo de audio donde
+  se pronunció (14 de 18 cabezas con diagonalidad mayor que 0.9), lo que permite
+  explicar visualmente qué escuchó el modelo al escribir cada palabra.
+- **Tiempo:** crece con la cantidad de tokens (≈ 0.18 s por token en CPU), más una
+  parte fija de ≈ 2.2 s.
+
+### 7.3 Lo que no podemos concluir
+
+- **Libro contra frases cotidianas:** el WER fue menor en las cotidianas (15.4 % contra
+  23.4 %), pero con nuestros datos esa diferencia no es concluyente.
+- **Beam search 5 contra greedy:** no encontramos diferencia clara de WER (20.7 %
+  contra 21.7 %), aunque beam 5 tarda unas 2.6 veces más.
+- **Inglés y traducción:** son muy pocas frases (4 y 1) para sacar cifras.
+- **Generalización:** una sola voz y un solo micrófono. No sabemos cómo cambiaría con
+  otras voces, acentos o ruido real.
+
+### 7.4 Posibles mejoras
+
+Procesar audios largos con ventanas de 30 s, detectar el silencio antes de decodificar
+y avisar al usuario cuando la confianza sea baja (sección 6.14).
 
 ---
 
