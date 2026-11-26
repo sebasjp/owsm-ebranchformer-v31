@@ -2029,14 +2029,23 @@ hicieron en un computador distinto al de la prueba inicial).
 
 ![RTF por audio](docs/figuras/p1_rtf_sin_silencio.png)
 
-**Cómo leer las figuras.** La primera es un punto por audio: en el eje horizontal, los
+**Cómo leer las figuras.** La primera tiene un punto por audio: en el eje horizontal, los
 tokens que escribió el modelo; en el vertical, cuánto tardó. Los puntos siguen una línea
-casi recta. La segunda muestra el RTF de cada audio; los más cortos tienen un RTF alto
-porque la parte fija (≈ 2.2 s) pesa más.
+casi recta. La segunda muestra el RTF de cada audio, con una línea roja en RTF = 1
+(tiempo real): una barra **por encima** de la línea significa que el modelo tardó más de
+lo que dura el audio (peor), y una barra **por debajo**, que tardó menos (mejor).
+
+Casi la mitad de los audios queda por encima de 1 (20 de 43) y el promedio es 0.98, así
+que en nuestro computador el modelo trabaja aproximadamente en tiempo real. Hay una
+**tendencia, no una regla**: los audios de menos de 5 s tuvieron un RTF medio de 1.18, los
+de 5 a 7 s, entre 0.9 y 1.0, y los de más de 7 s, alrededor de 0.7. Se debe a que la parte
+fija del tiempo (≈ 2.2 s) pesa más cuando el audio es corto. Hay excepciones: `corta05`
+(2.9 s) tuvo RTF 2.1, y `corta01` dura 11 s para una frase de 9 palabras, por lo que su
+RTF fue de solo 0.28 (el RTF baja cuando la grabación es larga para lo poco que se dice).
 
 **En pocas palabras:** el tiempo depende sobre todo de cuántas palabras escribe el modelo,
-no de cuánto dura el audio, y el modelo base es lo bastante liviano para usarse en CPU,
-con tiempos del orden de la duración del audio.
+no de cuánto dura el audio. En CPU el modelo base trabaja cerca del tiempo real, y es
+algo más lento que el audio cuando este dura menos de 5 s.
 
 #### 6.10.6 Resumen de resultados propios
 
