@@ -1829,9 +1829,9 @@ Windows sin GPU, con `ctc_weight = 0` y *beam search* de 5 (la configuración de
 aplicación). Hay dos tipos de texto de referencia, para poder comparar:
 
 - **Libro:** 24 frases de *Noches blancas* de Dostoievski (traducción al español de
-  una edición digital libre), de 6 a 15 palabras. Es lenguaje literario del siglo
+  una edición digital libre), de 6 a 16 palabras. Es lenguaje literario del siglo
   XIX, con palabras poco frecuentes.
-- **Cotidiano:** 12 frases escritas por nosotros, de 8 a 12 palabras, sobre
+- **Cotidiano:** 12 frases escritas por nosotros, de 10 a 13 palabras, sobre
   situaciones de todos los días (café, reunión, bus, llaves).
 
 Los fragmentos del libro y los audios no se publican en el repositorio.
@@ -2121,6 +2121,51 @@ La atención en este caso se ve en la sección 6.12.
 detectar la ausencia de voz antes de transcribir y desconfiar de las salidas con confianza
 baja.
 
+#### 6.10.10 Comparación directa con el artículo
+
+**Qué analizamos:** si lo que medimos nosotros es compatible con lo que reportan los
+autores para el modelo base, tarea por tarea. Los autores evalúan con miles de audios y
+con conjuntos de prueba oficiales (secciones 6.2 a 6.9); nosotros, con 36 frases de una
+sola voz (más los casos especiales). Por eso la última columna dice "compatible" cuando
+nuestro valor cae dentro de lo esperable y nunca "confirmado".
+
+**Cómo leer la tabla:** cada fila es una tarea o servicio del modelo. La segunda columna
+trae el resultado del artículo para el modelo base; la tercera, el nuestro; la cuarta
+dice qué podemos concluir.
+
+| Tarea o servicio | Artículo (modelo base) | Nuestras pruebas | Lectura |
+|---|---|---|---|
+| **Español leído** | 18.5 % de WER (MLS, audiolibros) | 20.7 % de WER en 36 frases (intervalo de 15.7 a 25.8 %) | **Compatible:** el valor del artículo cae dentro de nuestro intervalo |
+| **Inglés** | 12.1 % de WER promedio en 9 conjuntos (de 3.6 % a 22.9 % según el tipo de audio) | 11.4 % en 4 frases (44 palabras) | **Compatible,** pero con muy pocas frases, solo orientativo |
+| **Traducción español → inglés** | BLEU 10.0 (Whisper medium: 39.7) | 1 frase: salida mezclada e ininteligible, confianza 0.40 | **Coherente:** el modelo base traduce mal. No se midió BLEU |
+| **Audio largo (más de 30 s)** | WER de 7.8 % (frases cortas) a 9.6 % (charlas completas) | `muylarga` (42 s) se recorta a 30 s; en el tramo procesado el WER fue ≈ 24.7 %, similar al de `larga` | **Confirma la limitación:** el modelo no procesa más de 30 s de una vez. Los WER no son comparables (otro tipo de audio) |
+| **Identificación de idioma** | 41.9 % de exactitud (la peor de la tabla) | No medida: la aplicación fija el idioma en el *prompt* | Sin comparación. Nuestra decisión de fijar el idioma se apoya en el artículo |
+| **Velocidad** | 3.67 veces más rápido que OWSM v3 medium (GPU A40, *greedy*) | RTF de 0.98 en CPU, con *beam search* de 5 y extracción de la atención | **No comparable:** distinto equipo y configuración. Lo que sí se ve es que corre en CPU casi en tiempo real |
+| **Comprensión del habla; sesgo contextual** | Se evalúan solo en el artículo (el base empeora con la lista de palabras) | No probadas | Sin comparación. No forman parte de la aplicación |
+| **Ruido, silencio y atención** | No se evalúan en el artículo | WER de 20.7 % a 55.4 % al bajar la SNR a 5 dB; alucinación con silencio; capas 4 a 6 alineadas con el audio | **Aporte propio** de este proyecto |
+
+**Por tipo de audio (solo nuestras pruebas).** El artículo no reporta resultados por
+longitud de la frase, así que esta comparación es solo entre nuestros audios:
+
+| Tipo de audio | Palabras | WER |
+|---|---|---|
+| Frases cortas del libro (6 a 10 palabras) | 100 | 24.0 % |
+| Frases medias del libro (10 a 16 palabras) | 156 | 23.1 % |
+| Frases cotidianas (10 a 13 palabras) | 136 | 15.4 % |
+| Audio largo (`larga`, 26 s) | 68 | 26.5 % |
+| Inglés (4 frases) | 44 | 11.4 % |
+
+No encontramos diferencia clara por longitud: cortas y medias dan casi lo mismo (24.0 % y
+23.1 %), y el audio largo que cabe en la ventana también es parecido (26.5 %). La
+diferencia mayor es entre el texto del libro y el cotidiano, pero, como vimos en 6.10.2,
+no es concluyente con tan pocas frases.
+
+**En pocas palabras:** donde podemos compararnos con el artículo (español, inglés,
+traducción y audio largo), nuestros resultados son compatibles con los suyos. Donde no
+(identificación de idioma, velocidad, comprensión del habla y sesgo contextual), no hay
+comparación posible con nuestros datos. Y el ruido, el silencio y la atención son aportes
+propios que el artículo no cubre.
+
 ### 6.11 Cómo reproducir las pruebas
 
 Los scripts están en `scripts/` y se ejecutan con `uv` desde la raíz del repositorio:
@@ -2330,7 +2375,8 @@ cross-attention** del decoder (6 capas × 6 cabezas), extraída con una segunda 
 
 ### 7.4 Lo que verificamos con pruebas propias
 
-Probamos 44 audios con una sola voz (sección 6.10):
+Probamos 44 audios con una sola voz (sección 6.10; la comparación directa con el
+artículo, tarea por tarea, está en la sección 6.10.10):
 
 - **Precisión en español:** WER de **20.7 %** en 36 frases (392 palabras; intervalo de
   confianza de 15.7 a 25.8 %). El 18.5 % del artículo cae dentro del intervalo, así que
