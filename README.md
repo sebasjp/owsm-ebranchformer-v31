@@ -2176,11 +2176,34 @@ modelo atiende al lugar correcto y se equivoca al escribir.
 
 ![Atención en corta01](docs/figuras/atencion_corta01.png)
 
-**3. Las capas y las cabezas se especializan.** Para cada capa y cabeza se midió
-la correlación de Spearman entre el orden de los tokens y el orden de los frames
-donde más atienden (1 es una diagonal perfecta), promediada sobre los 42
-audios con voz (frases, largos e inglés). Esta medida solo comprueba el orden, no que el pico caiga
-exactamente en el lugar correcto.
+**3. Las capas y las cabezas se especializan.**
+
+*Qué es la matriz.* El decoder tiene 6 capas y cada capa tiene 6 cabezas de atención
+(36 en total). Cada cabeza produce su propio mapa de atención como los de arriba: para
+cada token que se escribe, indica en qué parte del audio está mirando. Los 36 mapas no
+se comportan igual. La matriz de abajo resume en **un solo número por cabeza** si su
+mapa tiene forma de diagonal (el modelo recorre el audio de izquierda a derecha mientras
+escribe) o no. Cada casilla es una cabeza: la fila es la capa, la columna es la cabeza, y
+el color y el número indican qué tan diagonal es.
+
+*Cómo se calcula.*
+
+1. En cada mapa, para cada token se toma el instante del audio donde esa cabeza atiende
+   más (el pico). Así queda una lista: token 1 → instante a, token 2 → instante b, etc.
+   (se excluye el último token, `<eos>`, que marca el final).
+2. Si el modelo va leyendo el audio en orden, esos instantes **aumentan** a medida que
+   avanzan los tokens. Por ejemplo, tokens 1 a 5 que miran los instantes 10, 60, 120,
+   200 y 300 siguen el orden perfecto; en cambio 300, 10, 200, 60 y 120 no tienen orden.
+3. Se mide qué tan ordenada es la lista con la **correlación de Spearman** entre el
+   número del token y el instante del pico: **1** significa orden perfecto (diagonal), **0**
+   significa que no hay relación, y un valor negativo significaría que recorre el audio al
+   revés.
+4. Se hace para cada una de las 36 cabezas en cada audio, y se **promedia sobre los 42
+   audios** con voz (frases, largos e inglés). Eso da la matriz de 6 × 6.
+
+*Cómo se interpreta.* Mientras más amarilla (cercana a 1), más diagonal es la cabeza: cada
+palabra se asocia con el tramo del audio donde se dijo, en orden. Las casillas oscuras son
+cabezas cuya atención no sigue el orden del audio.
 
 ![Diagonalidad por capa y cabeza](docs/figuras/p1_diagonalidad.png)
 
@@ -2188,18 +2211,27 @@ exactamente en el lugar correcto.
 |---|---|---|---|---|---|---|
 | Diagonalidad media | 0.21 | 0.55 | 0.52 | 0.88 | 0.91 | 0.89 |
 
-14 de las 18 cabezas de las capas 4 a 6 superan 0.9, frente a 2 de las 18 de las
-capas 1 a 3. Las últimas capas son las que alinean el texto con el audio, y las
-primeras atienden de forma más dispersa. Dentro de una misma capa también hay
-diferencias: en la capa 6, la cabeza 2 reparte la atención de forma difusa y las
-demás son diagonales.
+*Qué concluimos.*
+
+- **Las capas 4 a 6 sí siguen el audio en orden:** 14 de sus 18 cabezas superan 0.9
+  (varias llegan a 1.00). En las capas 1 a 3 solo 2 de las 18 lo hacen. Es decir, la
+  conexión entre el texto y el audio se concentra en las últimas capas.
+- **No todas las cabezas hacen lo mismo,** incluso en una misma capa. Por ejemplo, la
+  cabeza 2 de la capa 6 (0.54) no sigue el orden y las otras cinco de esa capa sí.
+- **Consecuencia práctica:** si queremos mostrar en la aplicación "dónde mira el modelo",
+  conviene usar las capas 4 a 6 (la mejor cabeza fue la 3 de la capa 5); las primeras capas dan
+  mapas difusos y difíciles de interpretar.
+- **Lo que no podemos decir:** esta medida solo comprueba el **orden**, no que el pico caiga
+  exactamente en el lugar correcto del audio. Tampoco sabemos por qué las primeras capas
+  no se alinean con el audio (es un hallazgo descriptivo). Una hipótesis razonable es que
+  se ocupan de otra cosa, como el contexto del texto ya escrito, pero no la comprobamos.
+
+Los mapas completos de una frase muestran la diferencia: en la capa 6 casi todas las
+cabezas dibujan una diagonal, y en la capa 1 la atención está dispersa.
 
 ![Cabezas de la capa 6](docs/figuras/cabezas_media01_capa6.png)
 
 ![Cabezas de la capa 1](docs/figuras/cabezas_media01_capa1.png)
-
-No medimos por qué las primeras capas no se alinean con el audio; es un
-hallazgo descriptivo.
 
 **4. Sin voz, la atención pierde la alineación.** En el silencio no hay diagonal:
 la atención se concentra en los primeros frames del audio (menos de 0.3 s) y en un
