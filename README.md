@@ -2,7 +2,7 @@
 
 Proyecto final — Procesamiento de Datos Secuenciales
 
-**Integrantes:** _(completar nombres completos)_
+**Integrantes:** Sebastian Jimenez · Cesar Carabali · Julian Correa · Juan Felipe Plata
 
 ---
 
@@ -21,7 +21,21 @@ Proyecto final — Procesamiento de Datos Secuenciales
 
 ## 1. Resumen
 
-> _Pendiente: se escribe al final, cuando estén los resultados._
+Este proyecto estudia e implementa la inferencia de OWSM v3.1 [1], un modelo
+abierto de voz a texto al estilo de Whisper, basado en un Transformer
+encoder–decoder con encoder E-Branchformer y entrenado con una pérdida conjunta
+CTC + atención. Usamos los pesos preentrenados del modelo base (101M parámetros)
+sobre ESPnet, sin entrenar ni ajustar el modelo, y construimos una aplicación en
+Streamlit que permite grabar o cargar un audio, transcribirlo o traducirlo, y
+visualizar la *cross-attention* del decoder en sus 6 capas y 6 cabezas.
+
+En nuestras pruebas en CPU, con 36 frases en español (392 palabras), el modelo
+obtuvo un WER de 20.7 % (IC 95 % de 15.7 a 25.8 %), compatible con el 18.5 %
+que reporta el artículo. El error sube a 55.4 % con ruido fuerte (SNR de 5 dB),
+el modelo inventa texto ante el silencio, la traducción es su punto más débil y
+solo procesa 30 s de audio a la vez. El análisis de la atención muestra que las
+capas 4 a 6 del decoder alinean cada token con el tramo del audio donde se
+pronunció, lo que permite ver qué escuchó el modelo al escribir cada palabra.
 
 ---
 
@@ -872,7 +886,7 @@ flowchart LR
 | Python | 3.12 | Lenguaje del proyecto (`.python-version`). |
 | [uv](https://docs.astral.sh/uv/) | — | Gestor del entorno y las dependencias. El archivo `uv.lock` fija la versión exacta de cada paquete, así el entorno es idéntico en cualquier computador. |
 | PyTorch / torchaudio | 2.12 / 2.11 | Motor de tensores sobre el que corre la red, en CPU o GPU. |
-| ESPnet [5] | 202611 | *Toolkit* con el que los autores entrenaron OWSM. Su clase `Speech2Text` construye la red desde `config.yaml`, carga los pesos y ejecuta el *beam search*. |
+| ESPnet [5] | 202511 | *Toolkit* con el que los autores entrenaron OWSM. Su clase `Speech2Text` construye la red desde `config.yaml`, carga los pesos y ejecuta el *beam search*. |
 | espnet_model_zoo / Hugging Face Hub | 0.1.7 / 2.4 | Descarga de los pesos preentrenados y del resto de archivos del modelo. |
 | librosa / soundfile | 0.11 / 0.14 | Lectura de audio (wav, mp3, flac, ogg), conversión a mono y remuestreo a 16 kHz. |
 | matplotlib | 3.11 | Gráficos del log-Mel y de los mapas de atención. |
@@ -996,8 +1010,15 @@ owsm-ebranchformer-v31/
 │   ├── atencion.py           # inferencia + extracción de la cross-attention
 │   └── graficos.py           # log-Mel y mapas de calor de atención
 ├── scripts/
-│   └── prueba_inferencia.py  # prueba por consola con tiempo y RAM
-└── docs/                     # documentación de apoyo
+│   ├── prueba_inferencia.py  # prueba por consola con tiempo y RAM
+│   ├── grabar.py             # grabación de los audios de prueba
+│   ├── evaluar.py            # WER/CER, ruido, beam search y mapas de atención
+│   └── graficar_resultados.py  # gráficas de tiempo y RTF
+├── audios/                   # plantilla de referencias (los audios no se publican)
+└── docs/
+    ├── figuras/              # figuras de la sección 6
+    ├── resultados/           # resultados numéricos de nuestras pruebas
+    └── …                     # guía del curso y documentación de apoyo
 ```
 
 | Módulo | Responsabilidad |
@@ -1471,7 +1492,7 @@ superar el 100 %.
 - **Hardware:** la velocidad se mide en una GPU NVIDIA A40. El speed-up es
   relativo, así que no se puede comparar directamente con tiempos absolutos en
   CPU (sección 6.10).
-- **Comparación justa:** OWSM v3.1 usa **los mismos 180 mil horas de datos** que
+- **Comparación justa:** OWSM v3.1 usa **las mismas 180 mil horas de datos** que
   OWSM v3. Cualquier mejora se debe a la arquitectura y al entrenamiento, no a
   más datos.
 
@@ -1793,14 +1814,12 @@ extremo a extremo y cuánto tarda. La captura de pantalla está en
    procesó con el modelo preentrenado y produjo una frase completa y coherente en
    español. Esto cumple el requisito de inferencia funcional con visualización.
 
-2. **El RTF mayor que 1 se explica por la ventana fija de 30 s.** Un RTF de 5.69
-   significa que procesar 3.7 s de audio tardó 5.7 veces más que su duración.
-   Pero el modelo no procesa 3.7 s: rellena con silencio hasta 30 s (sección
-   5.4), así que el encoder trabaja siempre sobre 749 frames. Medido sobre la
-   ventana real, el costo es 21.18 / 30 ≈ **0.71 s por segundo de audio**. Por
-   eso el RTF de un audio corto parece alto. (Esta explicación se corrige en la
-   sección 6.10.5: con más mediciones, el tiempo depende sobre todo de los
-   tokens generados.)
+2. **RTF mayor que 1 en un audio corto.** Un RTF de 5.69 significa que
+   procesar 3.7 s de audio tardó 5.7 veces más que su duración. El tiempo de
+   inferencia tiene una parte fija, porque el encoder procesa siempre la ventana
+   completa de 30 s (sección 5.4), y una parte que crece con cada token generado
+   (sección 6.10.5). En un audio tan corto, la parte fija pesa mucho frente a su
+   duración, y por eso el RTF parece alto.
 
 3. **Diferencias con la velocidad del artículo.** El artículo mide en una GPU
    A40, con decodificación *greedy* y sin extraer la atención. Nuestra medición
@@ -2333,17 +2352,12 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
 
 ## 7. Conclusiones
 
-> _Borrador para revisar con el equipo. Resume las secciones 3 a 6: la arquitectura, lo
-> que implementamos, lo que dice el artículo y lo que medimos nosotros. Si cambia algún
-> resultado de la sección 6.10, hay que actualizar este texto._
-
 ### 7.1 Sobre la arquitectura y el modelo
 
 - OWSM v3.1 conserva el diseño de Whisper (un Transformer encoder–decoder con tareas
   indicadas por tokens especiales) y cambia solo el encoder, que pasa a ser un
   E-Branchformer (sección 3.5). Cada bloque combina atención global con una rama local
-  (cgMLP). Los autores muestran que converge más rápido que el Transformer y el
-  Conformer (sección 6.3).
+  (cgMLP). Los autores muestran que converge más rápido que el Transformer (sección 6.3).
 - Es un modelo **abierto y liviano**: la versión base tiene 101 millones de parámetros,
   se entrenó con datos públicos y corre en CPU. Es el más rápido de su tabla (3.67
   veces), gracias al submuestreo de ×4 (40 ms por frame) y a un decoder pequeño
@@ -2417,9 +2431,6 @@ reporta el artículo y lo que medimos. Las mejoras propuestas están en la secci
 ---
 
 ## 8. Referencias
-
-> _Formato IEEE. Lista en construcción: cada sección agrega sus referencias y al
-> final se unifica la numeración._
 
 [1] Y. Peng, J. Tian, W. Chen, S. Arora, B. Yan, Y. Sudo, M. Shakeel, K. Choi, J. Shi, X. Chang, J.-w. Jung, and S. Watanabe, "OWSM v3.1: Better and faster open Whisper-style speech models based on E-Branchformer," in *Proc. Interspeech*, 2024. [Online]. Available: https://arxiv.org/abs/2401.16658
 
