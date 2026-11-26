@@ -2092,12 +2092,14 @@ traducir (español → inglés), que el artículo describe como su punto débil 
   artículo (12.1 % de promedio para el modelo base, sección 6.4).
 - **Traducción de español a inglés** (`traduccion01`): la salida mezcla palabras
   en inglés y español y no se entiende como una traducción; la confianza media
-  fue de 0.40, la más baja salvo el silencio. Es coherente con el BLEU de 10.0 que
-  el artículo reporta para el modelo base en esta dirección (sección 6.6). Es una
-  sola frase.
+  fue de 0.40, la más baja salvo el silencio (en las transcripciones fue de 0.7 a 0.87).
+  Es **una sola frase**, así que no mide la calidad de la traducción y no se puede
+  comparar con el BLEU de 10.0 del artículo (sección 6.6), que es una medida distinta,
+  calculada sobre miles de frases. Lo único que podemos decir es que nuestro ejemplo salió
+  mal, en la misma dirección que el artículo.
 
 **En pocas palabras:** en inglés el modelo funciona de forma razonable con frases simples;
-la traducción no es confiable.
+la traducción, en nuestro único ejemplo, salió mal (sin una medida que permita generalizar).
 
 #### 6.10.9 Silencio: alucinación
 
@@ -2137,7 +2139,7 @@ dice qué podemos concluir.
 |---|---|---|---|
 | **Español leído** | 18.5 % de WER (MLS, audiolibros) | 20.7 % de WER en 36 frases (intervalo de 15.7 a 25.8 %) | **Compatible:** el valor del artículo cae dentro de nuestro intervalo |
 | **Inglés** | 12.1 % de WER promedio en 9 conjuntos (de 3.6 % a 22.9 % según el tipo de audio) | 11.4 % en 4 frases (44 palabras) | **Compatible,** pero con muy pocas frases, solo orientativo |
-| **Traducción español → inglés** | BLEU 10.0 (Whisper medium: 39.7) | 1 frase: salida mezclada e ininteligible, confianza 0.40 | **Coherente:** el modelo base traduce mal. No se midió BLEU |
+| **Traducción español → inglés** | BLEU 10.0 (Whisper medium: 39.7) | 1 frase: salida mezclada e ininteligible, confianza 0.40 | **Sin comparación válida:** una sola frase y sin BLEU. El ejemplo salió mal, en la misma dirección que el artículo |
 | **Audio largo (más de 30 s)** | WER de 7.8 % (frases cortas) a 9.6 % (charlas completas) | `muylarga` (42 s) se recorta a 30 s; en el tramo procesado el WER fue ≈ 24.7 %, similar al de `larga` | **Confirma la limitación:** el modelo no procesa más de 30 s de una vez. Los WER no son comparables (otro tipo de audio) |
 | **Identificación de idioma** | 41.9 % de exactitud (la peor de la tabla) | No medida: la aplicación fija el idioma en el *prompt* | Sin comparación. Nuestra decisión de fijar el idioma se apoya en el artículo |
 | **Velocidad** | 3.67 veces más rápido que OWSM v3 medium (GPU A40, *greedy*) | RTF de 0.98 en CPU, con *beam search* de 5 y extracción de la atención | **No comparable:** distinto equipo y configuración. Lo que sí se ve es que corre en CPU casi en tiempo real |
@@ -2295,8 +2297,9 @@ Su ausencia, junto con una confianza baja, delata una alucinación.
   según el artículo, y 20.7 % en nuestras 36 frases (IC 95 % de 15.7 a 25.8). En portugués y polaco
   supera el 44 % (sección 6.5). El límite son los datos, no la arquitectura.
 - **Sensibilidad al ruido.** Con SNR de 5 dB, el WER sube a 55.4 %.
-- **Traducción débil.** BLEU de 10.0 de español a inglés en el artículo, y salida
-  ininteligible en nuestra prueba (sección 6.10.8).
+- **Traducción débil.** BLEU de 10.0 de español a inglés en el artículo; en nuestra
+  única frase de prueba la salida salió ininteligible (sección 6.10.8), sin que eso baste
+  para medir la calidad.
 - **Alucinación con silencio.** Escribe texto repetido, con confianza baja, y tardó
   176 s (sección 6.10.9).
 - **Identificación de idioma poco fiable.** Solo el 41.9 % de exactitud en el base
@@ -2384,8 +2387,9 @@ artículo, tarea por tarea, está en la sección 6.10.10):
 - **Ruido:** el WER sube de 20.7 % a 55.4 % con SNR de 5 dB.
 - **Silencio:** el modelo inventa texto repetido, con confianza baja (0.31), que sirve
   como alerta.
-- **Traducción:** la salida de nuestra prueba no se entiende, como sugiere el BLEU del
-  artículo.
+- **Traducción:** en nuestra única frase de prueba la salida no se entiende. No es una
+  medida de calidad (no calculamos BLEU), pero va en la misma dirección que el BLEU de
+  10.0 del artículo.
 - **Audio de más de 30 s:** se recorta; solo se procesó el tramo inicial.
 - **Cross-attention:** las capas 4 a 6 alinean cada token con el tramo de audio donde se
   pronunció (14 de 18 cabezas con diagonalidad mayor que 0.9). Esto permite explicar qué
