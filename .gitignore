@@ -223,3 +223,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Seccion 6: audios con la voz del autor y texto de referencia (fragmentos de un libro)
+audios/*.wav
+audios/referencias.csv
+/resultados/

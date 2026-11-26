@@ -1,0 +1,42 @@
+{
+  "mejor_cabeza_diagonal": {
+    "capa": 5,
+    "cabeza": 3,
+    "valor": 1.0
+  },
+  "diagonalidad_media": 0.66,
+  "wer_frases_global_%": 20.7,
+  "wer_frases_n_palabras": 392,
+  "tiempo_medio_s": 6.4,
+  "rtf_medio": 1.0,
+  "ruido": [
+    {
+      "snr_db": "sin ruido",
+      "wer_%": 20.7
+    },
+    {
+      "snr_db": 20.0,
+      "wer_%": 24.0
+    },
+    {
+      "snr_db": 10.0,
+      "wer_%": 40.6
+    },
+    {
+      "snr_db": 5.0,
+      "wer_%": 55.4
+    }
+  ],
+  "beam": [
+    {
+      "beam": 1,
+      "wer_%": 21.7,
+      "tiempo_medio_s": 1.8
+    },
+    {
+      "beam": 5,
+      "wer_%": 20.7,
+      "tiempo_medio_s": 4.6
+    }
+  ]
+}

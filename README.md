@@ -171,7 +171,9 @@ flowchart LR
    espectrales en los bordes. Para suavizarlos, cada frame se multiplica por una
    función de ventana; OWSM usa la ventana de Hann:
 
-   $$w(n) = 0.5 - 0.5\cos\left(\frac{2\pi n}{N-1}\right)$$
+   ```math
+   w(n) = 0.5 - 0.5\cos\left(\frac{2\pi n}{N-1}\right)
+   ```
 
    Este factor lleva los bordes a cero y mantiene intacta la amplitud del audio
    en la mitad del frame.
@@ -180,7 +182,9 @@ flowchart LR
    FFT a cada frame para pasar del dominio del tiempo al dominio de la
    frecuencia, y se calcula su espectro de potencia:
 
-   $$P_i = |\mathrm{FFT}(x_i)|^2$$
+   ```math
+   P_i = |\mathrm{FFT}(x_i)|^2
+   ```
 
    Para la FFT, cada frame de 400 muestras se completa con ceros hasta
    N<sub>FFT</sub> = 512, una potencia de 2.
@@ -189,7 +193,9 @@ flowchart LR
    frecuencias bajas que en altas. Por eso, las frecuencias se agrupan en 80
    bandas siguiendo la escala Mel, que suele definirse como:
 
-   $$m = 2595 \log_{10}\left(1 + \frac{f}{700}\right)$$
+   ```math
+   m = 2595 \log_{10}\left(1 + \frac{f}{700}\right)
+   ```
 
    Las bandas son estrechas en los graves y anchas en los agudos, entre 0 y
    8 kHz. ESPnet usa la variante de Slaney de esta escala: lineal por debajo de
@@ -198,7 +204,9 @@ flowchart LR
 5. **Logaritmo.** Se aplica el logaritmo a la energía de cada banda, porque el
    oído también percibe la intensidad de forma logarítmica:
 
-   $$\text{log-Mel} = \log(E_{mel} + \varepsilon)$$
+   ```math
+   \text{log-Mel} = \log(E_{mel} + \varepsilon)
+   ```
 
    donde ε es un valor muy pequeño que evita calcular log(0).
 
@@ -243,7 +251,9 @@ flowchart LR
    imagen y produce su propio mapa. Con *stride* 2, cada filtro avanza de dos en
    dos, por lo que cada capa reduce el tiempo y la frecuencia a la mitad:
 
-   $$\text{salida} = \left\lfloor \frac{\text{entrada} - \text{kernel}}{\text{stride}} \right\rfloor + 1$$
+   ```math
+   \text{salida} = \left\lfloor \frac{\text{entrada} - \text{kernel}}{\text{stride}} \right\rfloor + 1
+   ```
 
    | | Tiempo | Frecuencia |
    |---|---|---|
@@ -261,7 +271,9 @@ flowchart LR
    entrenamiento tipo Whisper el audio siempre dura 30 s, los autores usan la
    codificación **sinusoidal absoluta** [1], la misma del Transformer original:
 
-   $$PE_{(pos,\,2i)} = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad PE_{(pos,\,2i+1)} = \cos\left(\frac{pos}{10000^{2i/d}}\right)$$
+   ```math
+   PE_{(pos,\,2i)} = \sin\left(\frac{pos}{10000^{2i/d}}\right), \qquad PE_{(pos,\,2i+1)} = \cos\left(\frac{pos}{10000^{2i/d}}\right)
+   ```
 
    con d = 384. Antes de sumarla, ESPnet multiplica la entrada por √d.
 
@@ -337,12 +349,16 @@ flowchart TD
    *keys* (K) y *values* (V) se generan a partir de esa misma Z, multiplicándola
    por tres matrices de pesos aprendidas:
 
-   $$Q = ZW_Q, \qquad K = ZW_K, \qquad V = ZW_V$$
+   ```math
+   Q = ZW_Q, \qquad K = ZW_K, \qquad V = ZW_V
+   ```
 
    Cada frame compara su *query* con las *keys* de todos los frames; el
    resultado se normaliza con softmax y se usa para ponderar los *values*:
 
-   $$\text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V$$
+   ```math
+   \text{Attention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right)V
+   ```
 
    La matriz de pesos softmax(QKᵀ/√d<sub>k</sub>) es de 749 × 749: indica
    cuánto mira cada frame a cada uno de los demás. Este cálculo se hace en
@@ -423,7 +439,9 @@ resultado:   "hola"
 esta regla, dan el texto correcto. CTC no necesita saber cuál es la verdadera:
 **suma la probabilidad de todos los caminos** que producen la transcripción y maximiza esa suma:
 
-$$P(y \mid x) = \sum_{\pi \,\to\, y} \; \prod_{t=1}^{T} p_t(\pi_t), \qquad \mathcal{L}_{CTC} = -\log P(y \mid x)$$
+```math
+P(y \mid x) = \sum_{\pi \,\to\, y} \; \prod_{t=1}^{T} p_t(\pi_t), \qquad \mathcal{L}_{CTC} = -\log P(y \mid x)
+```
 
 donde π es un camino, con un símbolo por frame. La suma sobre todos los caminos
 se calcula eficientemente con programación dinámica. El texto de referencia se
@@ -440,13 +458,345 @@ copia completo (749 × 384) hacia dos destinos independientes, la cabeza CTC y l
 *cross-attention* del decoder. Las dos ramas no se pasan información; se
 relacionan a través de la pérdida total:
 
-$$\mathcal{L} = \lambda_1 \, \mathcal{L}_{CTC} + \lambda_2 \, \mathcal{L}_{att}, \qquad \lambda_1 + \lambda_2 = 1$$
+```math
+\mathcal{L} = \lambda_1 \, \mathcal{L}_{CTC} + \lambda_2 \, \mathcal{L}_{att}, \qquad \lambda_1 + \lambda_2 = 1
+```
 
 Para OWSM v3.1, λ<sub>1</sub> = 0.3 y λ<sub>2</sub> = 0.7 (valor `ctc_weight: 0.3`
 en la configuración publicada del modelo). En la retropropagación, los gradientes
 de ambas pérdidas se suman en el encoder compartido: así, CTC organiza el
 encoder y el decoder se beneficia al consultar un H mejor alineado. Según los
 autores, esta pérdida conjunta ayuda a estabilizar y acelerar la convergencia [3].
+
+### 3.7 Decoder Transformer
+
+El decoder es la parte del modelo que **escribe**. El cambio principal de
+OWSM v3.1 está en el encoder; el decoder sigue siendo un Transformer estándar,
+del mismo tipo que el de OWSM v3 y Whisper, aunque con menos capas que el de
+OWSM v3 (en el tamaño medium, 18 frente a 24) [1]. Funciona como un **modelo de lenguaje condicionado al audio** [2]: predice
+el siguiente token a partir de los tokens que ya escribió y de la memoria
+acústica H. Recibe dos entradas: los tokens generados hasta el momento (al
+inicio, solo el *prompt* de control, sección 3.8) y H (749 × 384), que viene del
+encoder y no cambia durante toda la generación. En el modelo base tiene 6 capas
+iguales, de dimensión 384 y con 6 cabezas de atención [1].
+
+```mermaid
+flowchart TD
+    Y["Tokens previos<br/>sos · spa · asr · notimestamps · …<br/>L tokens"] --> EMB["Embedding<br/>50002 → 384"]
+    EMB --> PE["+ Codificación posicional<br/>L × 384"]
+    PE --> LN1["LayerNorm"]
+    LN1 --> SA["Self-attention enmascarada<br/>Q, K, V del texto · 6 cabezas"]
+    SA --> S1(("+"))
+    PE --> S1
+    S1 --> LN2["LayerNorm"]
+    LN2 --> CA["Cross-attention<br/>Q del texto · K, V de H · 6 cabezas"]
+    H["H<br/>749 × 384"] -- "K, V" --> CA
+    CA --> S2(("+"))
+    S1 --> S2
+    S2 --> LN3["LayerNorm"]
+    LN3 --> FFN["FFN<br/>384 → 1536 → 384"]
+    FFN --> S3(("+"))
+    S2 --> S3
+    S3 -- "× 6 capas" --> LNF["LayerNorm final"]
+    LNF --> OUT["Linear 384 → 50002<br/>+ softmax"]
+    OUT --> P["Probabilidad del<br/>siguiente token"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef encoder fill:#FDE2C3,stroke:#D49A5A,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef ffn fill:#C7E8F5,stroke:#6A9BC3,color:#333
+    classDef norma fill:#F3F3C1,stroke:#B8B86A,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    classDef cruce fill:#FDE2C3,stroke:#D49A5A,stroke-width:3px,color:#333
+    class Y entrada
+    class EMB,PE decoder
+    class SA encoder
+    class CA cruce
+    class H,S1,S2,S3 memoria
+    class FFN ffn
+    class LN1,LN2,LN3,LNF norma
+    class OUT,P salida
+```
+
+1. **Embedding.** Cada token es un número entero (su ID). El embedding es una
+   tabla aprendida de 50 002 × 384: convertir un token en vector es simplemente
+   tomar la fila correspondiente. Por ejemplo, el *prompt* `[49999, 121, 155, 181]`
+   se convierte en una matriz de 4 × 384. Así el texto queda con la misma
+   dimensión que H, y el decoder puede compararlos.
+
+2. **Codificación posicional.** Igual que en el encoder (sección 3.4), la
+   atención no conoce el orden de los tokens, así que a cada vector se le suma
+   la codificación posicional sinusoidal de su posición (implementación del
+   decoder en ESPnet [5]). Whisper, en cambio, usa posiciones aprendidas en el decoder [2].
+
+3. **Self-attention enmascarada.** Llamemos S a los vectores del texto
+   (L × 384, con L el número de tokens). Las *queries*, *keys* y *values* se
+   generan **del mismo texto**, con la misma fórmula de la sección 3.5, pero con
+   una máscara causal M que se suma antes del softmax:
+
+   ```math
+   \text{MaskedAttention}(Q, K, V) = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}} + M\right)V, \qquad M_{ij} = \begin{cases} 0 & j \le i \\ -\infty & j > i \end{cases}
+   ```
+
+   donde Q = SW<sub>Q</sub>, K = SW<sub>K</sub> y V = SW<sub>V</sub>. Como
+   e<sup>−∞</sup> = 0, el token *i* solo puede mirar los tokens 1 a *i*: nunca
+   el futuro. El mapa de atención es de L × L. Esta capa le dice a cada token
+   **qué se ha escrito antes**: el contexto del lenguaje (después de "cómo" es
+   probable "está").
+
+4. **Cross-attention.** Es el **único punto donde el texto consulta el audio**.
+   Las *queries* salen del texto y las *keys* y *values* salen de H:
+
+   ```math
+   Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)
+   ```
+
+   ```math
+   A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749), \qquad \text{salida} = AV \;\; (L \times 384)
+   ```
+
+   donde S son los estados del decoder después de la *self-attention*. Cada
+   token pregunta (Q): "según lo que llevo escrito, ¿qué parte del audio necesito
+   para el siguiente?". Cada frame de 40 ms responde con su clave (K), y el
+   resultado mezcla la información acústica (V) de los frames elegidos. La fila
+   *i* de A es una distribución sobre los 749 frames: una **alineación suave**
+   entre texto y audio, que se calcula de nuevo en cada paso y no lleva máscara.
+   H es la misma en las 6 capas, pero cada capa y cada cabeza (d<sub>k</sub> =
+   64) tienen sus propias W<sub>Q</sub>, W<sub>K</sub> y W<sub>V</sub>, así que
+   cada una consulta el audio de forma distinta. Estos 6 × 6 mapas son los que
+   visualiza nuestra aplicación (sección 5.7).
+
+5. **FFN.** Dos capas lineales con una activación en medio, aplicadas a cada
+   token por separado: 384 → 1536 → 384 (configuración publicada del modelo),
+   con activación ReLU (implementación de ESPnet [5]). Las atenciones **mezclan** información entre posiciones; la FFN
+   **procesa** lo que cada token recibió del texto y del audio. A diferencia del
+   encoder, es una FFN completa y no dos medias.
+
+6. **Normalización y conexiones residuales.** Como en el encoder, cada
+   subcapa se normaliza antes de aplicarse (*pre-LN*, implementación de ESPnet
+   [5]) y su salida se suma a su entrada: hay 3 conexiones residuales por capa, una por subcapa.
+
+7. **Capa de salida.** Después de las 6 capas y una LayerNorm final, una capa
+   lineal convierte el vector de cada token en 50 002 puntajes (*logits*), uno
+   por token del vocabulario, y un softmax los vuelve probabilidades. Durante la
+   generación solo se usa la última fila: la probabilidad del **siguiente**
+   token. En OWSM esta capa no comparte pesos con el embedding de entrada [3];
+   en Whisper sí [2].
+
+En el entrenamiento, el decoder recibe la transcripción correcta completa y
+predice todas las posiciones a la vez (*teacher forcing*). Su pérdida es la
+entropía cruzada entre la predicción y el token correcto en cada posición:
+
+```math
+P(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid y_{<i},\, H\right), \qquad \mathcal{L}_{att} = -\sum_{i=1}^{N} \log p\left(y_i \mid y_{<i},\, H\right)
+```
+
+donde y<sub><i</sub> son los tokens anteriores a *i* y N es la longitud del
+texto. Esta es la L<sub>att</sub> que pesa 0.7 en la pérdida total (sección
+3.6).
+
+**¿Por qué la máscara?** Con *teacher forcing*, el decoder ve toda la frase
+correcta. Sin máscara, para predecir el token 5 le bastaría con mirar el token 5
+de su entrada: aprendería a copiar. La máscara hace que el entrenamiento se
+comporte igual que la inferencia, donde el futuro todavía no existe. Por esta
+misma razón, nuestra aplicación puede recalcular la atención de la frase
+completa en una sola pasada (sección 5.7).
+
+**¿Por qué un decoder pequeño?** El encoder se ejecuta una sola vez por audio,
+pero el decoder se ejecuta una vez **por cada token** generado. Según los
+autores, OWSM v3.1 es hasta un 25 % más rápido que OWSM v3 en inferencia
+principalmente por su decoder más pequeño, además del paso de 40 ms del encoder
+[1].
+
+| | Bloque del encoder (E-Branchformer) | Capa del decoder (Transformer) |
+|---|---|---|
+| Atenciones | 1: *self-attention* sin máscara | 2: *self-attention* **enmascarada** y *cross-attention* |
+| Contexto local | Convolución (cgMLP, kernel 31) | No tiene |
+| FFN | Dos medias (macaron) | Una completa |
+| Q, K, V | Del audio | *Self*: del texto · *Cross*: Q del texto, K y V de H |
+| Ejecuciones | 1 por audio | 1 por cada token |
+
+### 3.8 Tokens especiales y formato multitarea
+
+Whisper [2] introdujo la idea de que **un solo modelo** haga varias tareas:
+transcribir, traducir, identificar el idioma y marcar tiempos. La tarea no se
+elige cambiando el modelo, sino **escribiéndola** al inicio del texto con tokens
+especiales. OWSM [3] reproduce este formato y lo extiende. El decoder recibe
+estos tokens como cualquier otro texto, y a partir de ellos genera la salida.
+
+```mermaid
+flowchart LR
+    SOP["sop + texto previo<br/>(opcional)"] -.-> SOS["sos"]
+    SOS --> LANG["Idioma<br/>spa, eng, …"]
+    LANG --> TASK["Tarea<br/>asr / st_eng, …"]
+    TASK --> TS["notimestamps<br/>o marcas de tiempo"]
+    TS --> TXT["Texto<br/>▁hol · a · ▁cómo …"]
+    TXT --> EOS["eos"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    class SOP memoria
+    class SOS,LANG,TASK,TS entrada
+    class TXT decoder
+    class EOS salida
+```
+
+1. **Texto previo (opcional).** El token `<sop>` seguido del texto de la
+   oración anterior da contexto al decoder [3]. En el entrenamiento de OWSM v3.1
+   se incluye con una probabilidad de 0.5 [1]. Nuestra aplicación no lo usa (ver
+   el porqué al final de esta sección).
+
+2. **Inicio (`<sos>`).** Marca dónde empieza la salida del decoder [3].
+
+3. **Idioma.** Un token por idioma del audio, como `<spa>` o `<eng>`; OWSM
+   cubre 151 idiomas, frente a los 99 de Whisper [3]. Si no se le da, el modelo
+   lo predice como primer token, y eso es exactamente la **identificación de
+   idioma** [3].
+
+4. **Tarea.** `<asr>` para transcribir en el mismo idioma, o un token de
+   traducción **por cada idioma destino**, como `<st_eng>` o `<st_spa>`. Por
+   eso OWSM puede traducir entre distintos pares de idiomas, mientras que
+   Whisper solo traduce hacia el inglés [2], [3].
+
+5. **Marcas de tiempo.** `<notimestamps>` pide solo texto. Sin ese token, el
+   modelo intercala tokens de tiempo con una resolución de 20 ms que indican
+   dónde empieza y termina cada segmento [2], [3].
+
+6. **Texto y fin (`<eos>`).** El decoder genera el texto como subpalabras de
+   SentencePiece [6] y termina con `<eos>`.
+
+Todo, incluidos los tokens de control, se predice de forma autorregresiva con
+el mismo decoder [3]. Durante la inferencia nosotros escribimos el *prompt* y el
+modelo continúa desde ahí:
+
+```math
+p(y \mid X) = \prod_{i=1}^{N} p\left(y_i \mid \underbrace{\texttt{<sos>}, \texttt{<spa>}, \texttt{<asr>}, \texttt{<notimestamps>}}_{\text{prompt}},\; y_{<i},\; H\right)
+```
+
+Los IDs concretos de cada token y cómo se construye el *prompt* en nuestro
+código están en la sección 5.5.
+
+**¿Por qué tokens y no un modelo por tarea?** Los tokens de control entran por
+la *self-attention* enmascarada como cualquier otro token, así que **todo** lo
+que el decoder escribe después los "ve" y queda condicionado por ellos. Con los
+mismos pesos, `<asr>` produce una transcripción y `<st_eng>`, una traducción.
+Las tareas comparten lo aprendido y basta un solo modelo.
+
+**¿Por qué fijamos el idioma y no usamos texto previo?** En el modelo base, la
+identificación de idioma solo acierta el 41.9 % de las veces [1], por eso
+nuestra aplicación pide el idioma al usuario y lo escribe en el *prompt*. El
+texto previo sirve para transcribir audios largos por segmentos, pasando la
+oración anterior como contexto; nuestra aplicación procesa un solo segmento de
+hasta 30 s, así que no hay contexto que dar. El mismo espacio del *prompt*
+también puede usarse para dar una lista de palabras difíciles (*contextual
+biasing*): en small y medium mejora mucho el reconocimiento de esas palabras
+sin empeorar el resto, mientras que en el base apenas las mejora y empeora
+las demás. Los autores lo describen como una **habilidad emergente**, que aparece con el
+tamaño del modelo [1].
+
+### 3.9 Inferencia
+
+El modelo **no produce texto directamente**: en cada paso produce una
+distribución de probabilidad sobre los 50 002 tokens del vocabulario. El texto
+final es el resultado de un **algoritmo de búsqueda** que usa esas
+distribuciones para elegir token a token, más una **detokenización** que une
+los tokens en palabras. Esta sección explica la teoría; la configuración que
+usamos está en la sección 4.4 y su implementación en la sección 5.6.
+
+```mermaid
+flowchart TD
+    A["Audio"] --> ENC["Encoder<br/>(una sola vez)"]
+    ENC --> H["H<br/>749 × 384"]
+    P["Prompt<br/>sos · spa · asr · notimestamps"] --> DEC["Decoder<br/>6 capas"]
+    H -- "K, V" --> DEC
+    DEC --> SM["softmax<br/>50002 probabilidades"]
+    SM --> BS["Búsqueda<br/>greedy o beam search"]
+    BS --> FIN{"¿eos?"}
+    FIN -- "No: se agrega el token" --> DEC
+    FIN -- "Sí" --> DET["Detokenización<br/>SentencePiece"]
+    DET --> T["Texto"]
+
+    classDef entrada fill:#F9D5D3,stroke:#B5838D,color:#333
+    classDef encoder fill:#FDE2C3,stroke:#D49A5A,color:#333
+    classDef memoria fill:#ECECEC,stroke:#8A8A8A,color:#333
+    classDef decoder fill:#CFE6F7,stroke:#6A9BC3,color:#333
+    classDef paso fill:#E4D7F5,stroke:#9A86B8,color:#333
+    classDef decision fill:#FFF3BF,stroke:#C9A93B,color:#333
+    classDef salida fill:#E2F0D9,stroke:#7FA866,color:#333
+    class A,P entrada
+    class ENC encoder
+    class H memoria
+    class DEC decoder
+    class SM,BS,DET paso
+    class FIN decision
+    class T salida
+```
+
+1. **Generación autorregresiva.** El encoder se ejecuta una sola vez y produce
+   H. El decoder, en cambio, genera un token por paso: el token elegido se
+   agrega a su entrada y se vuelve a ejecutar para predecir el siguiente, hasta
+   que aparece `<eos>`. Para "hola cómo estás" (`▁hol`, `a`, `▁cómo`, `▁está`,
+   `s`, `<eos>`), el decoder se ejecuta 6 veces.
+
+2. **Búsqueda *greedy*.** La opción más simple es tomar siempre el token más
+   probable. Es rápida, pero un error temprano ya no se corrige, porque cada
+   token condiciona a todos los siguientes. Los resultados de reconocimiento de
+   voz del artículo se reportan con esta búsqueda [1].
+
+3. ***Beam search*.** En vez de una sola secuencia, mantiene las *k* secuencias
+   parciales más probables. En cada paso extiende cada una con sus mejores
+   candidatos y conserva solo las *k* mejores del total. El puntaje de una
+   hipótesis es la suma de las log-probabilidades de sus tokens:
+
+   ```math
+   \text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)
+   ```
+
+   donde se usan logaritmos para sumar en vez de multiplicar probabilidades muy
+   pequeñas. Whisper usa *k* = 5 porque reduce los bucles de repetición [2], y
+   en OWSM v3 el *beam search* mejora el reconocimiento de audio largo frente a
+   *greedy* [3]. Nuestra aplicación usa *k* = 5 (sección 4.4).
+
+4. **CTC en la decodificación.** El modelo tiene una segunda salida sobre H: la
+   cabeza CTC (sección 3.6). En la búsqueda, su opinión puede combinarse con la
+   del decoder mediante un peso λ (fórmula en la sección 4.4). La cabeza CTC
+   lee el audio en orden y sin volver atrás, así que penaliza las hipótesis que
+   no siguen el audio, como repeticiones u omisiones. Los autores de OWSM
+   comparan tres opciones en reconocimiento de voz: solo CTC da los peores
+   resultados, solo el decoder es mejor, y la combinación de ambos con *beam
+   search* es la mejor; que el decoder solo supere a CTC solo indica que el
+   decoder tiene mucha capacidad [3]. La combinación solo aplica al
+   reconocimiento, porque la CTC se entrenó únicamente con transcripciones [3]:
+   en una traducción el orden de las palabras no sigue al audio.
+
+5. **Fin de la búsqueda.** Una hipótesis termina cuando genera `<eos>`. Se
+   devuelve la hipótesis terminada con mayor puntaje.
+
+6. **Detokenización y salida final.** De la secuencia ganadora se quitan el
+   *prompt* y `<eos>`, los IDs se convierten en tokens y el tokenizador
+   SentencePiece [6] los une en texto: el símbolo `▁` marca el inicio de una
+   palabra y se reemplaza por un espacio. Así,
+   `['▁hol', 'a', '▁cómo', '▁está', 's']` se convierte en "hola cómo estás"
+   (detalle en la sección 5.6).
+
+**¿Por qué no usar siempre la opción más robusta?** Cada mejora cuesta tiempo:
+el *beam search* ejecuta el decoder para *k* hipótesis a la vez, y la
+combinación con CTC añade el cálculo de la cabeza CTC en cada paso. Nosotros
+usamos *beam search* con *k* = 5, pero sin CTC (λ = 0), para que cada token lo
+decida únicamente el decoder y el mapa de *cross-attention* explique toda la
+salida (sección 4.4).
+
+| | Entrenamiento | Inferencia |
+|---|---|---|
+| Entrada del decoder | La transcripción correcta completa (*teacher forcing*) | El *prompt* más sus propias predicciones |
+| Pasadas del decoder | Una, todas las posiciones a la vez | Una por cada token generado |
+| Máscara causal | Evita mirar los tokens correctos futuros | Se mantiene; el futuro aún no existe |
+| Objetivo | Minimizar 0.3 · L<sub>CTC</sub> + 0.7 · L<sub>att</sub> | Encontrar la secuencia con mejor puntaje |
+| Papel de CTC | Pérdida auxiliar que alinea H en el tiempo | Opcional, con peso λ (λ = 0 en nuestra aplicación) |
+| Errores | No se propagan: siempre ve el prefijo correcto | Un error temprano afecta a todo lo que sigue |
 
 ---
 
@@ -571,7 +921,9 @@ Como se vio en la sección 3.6, el modelo tiene dos salidas sobre H: la cabeza C
 y el decoder. En inferencia, ESPnet puede usarlas por separado o combinarlas. Para
 cada hipótesis de texto *y* calcula un puntaje:
 
-$$\text{score}(y) = (1 - \lambda)\,\log p_{att}(y \mid H) + \lambda\,\log p_{CTC}(y \mid H)$$
+```math
+\text{score}(y) = (1 - \lambda)\,\log p_{att}(y \mid H) + \lambda\,\log p_{CTC}(y \mid H)
+```
 
 | λ (`ctc_weight`) | Búsqueda | Quién decide el texto |
 |---|---|---|
@@ -602,6 +954,25 @@ Los demás parámetros de la decodificación son:
 | `lang_sym` / `task_sym` | `<spa>` / `<asr>` | Idioma y tarea por defecto. La interfaz los cambia en cada inferencia (sección 5.5). |
 | `predict_time` | `False` | Sin marcas de tiempo, salvo que el usuario las active. |
 | `device` | automático | `cuda` si hay GPU, si no `cpu`. |
+
+### 4.5 Entrenamiento de los autores (referencia)
+
+Este proyecto no entrena, pero los datos del entrenamiento publicado [1] ayudan a
+interpretar el comportamiento del modelo base:
+
+| Dato | Valor (modelo base) |
+|---|---|
+| Datos | 180 mil horas de audio de corpus públicos (las mismas que OWSM v3) |
+| Pasadas | ≈ 3 sobre el conjunto completo |
+| Tamaño de lote | 256 |
+| Hardware | 16 GPU NVIDIA A100 de 40 GB |
+| Costo estimado | ≈ 2.3 mil horas-GPU (small: 3.2 mil; medium: 24.6 mil) |
+| Tasa de aprendizaje máxima | 1e-3 (small: 5e-4; medium: 2e-4) |
+| Calendario | Subida lineal por tramos y luego decaimiento exponencial |
+| Pérdida | 0.3 · CTC + 0.7 · atención (sección 3.6) |
+
+Estos valores muestran por qué no se reproduce el entrenamiento (sección 4.3) y
+cuánto menos recursos usa OWSM que Whisper, que se entrenó con unas 680 mil horas.
 
 ---
 
@@ -892,7 +1263,9 @@ flowchart TD
    los puntajes y conserva solo las 5 mejores del total. El puntaje de una
    hipótesis es la suma de las log-probabilidades de sus tokens:
 
-   $$\text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)$$
+   ```math
+   \text{score}(y_{1:i}) = \sum_{j=1}^{i} \log p\left(y_j \mid y_{<j},\, H\right)
+   ```
 
 4. **Fin de la búsqueda.** Una hipótesis termina cuando genera `<eos>`. La
    búsqueda se detiene cuando no quedan hipótesis abiertas, cuando la regla de
@@ -960,9 +1333,13 @@ flowchart TD
    el beam search, así que la atención resultante es la misma que produjo el
    texto. En cada capa, la *cross-attention* calcula:
 
-   $$Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)$$
+   ```math
+   Q = S\,W_Q \;\; (L \times 384), \qquad K = H\,W_K \;\; (749 \times 384), \qquad V = H\,W_V \;\; (749 \times 384)
+   ```
 
-   $$A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749)$$
+   ```math
+   A = \text{softmax}\left(\frac{QK^\top}{\sqrt{d_k}}\right) \;\; (L \times 749)
+   ```
 
    donde S son los estados del decoder después de su *self-attention* (uno por
    token) y L es el número de tokens. Las *queries* vienen del texto; las *keys*
@@ -1116,7 +1493,23 @@ global (atención) con el local (cgMLP), en lugar de solo atención.
 
 ### 6.4 Reconocimiento de voz en inglés
 
-WER (%) en nueve conjuntos de prueba en inglés (tabla 2 del artículo):
+**Qué se evalúa:** qué tan bien transcribe cada modelo audio en inglés de nueve tipos
+distintos.
+
+**Cómo leer la tabla (tabla 2 del artículo):** cada fila es un conjunto de prueba (un
+tipo de audio); cada columna es un modelo; los números son WER en % (sección 6.1), así
+que **menor es mejor**. Las dos últimas filas son el promedio y la velocidad. Los
+modelos se ordenan por tamaño (base < small < medium): uno más grande suele ser más
+preciso, pero también más lento. Los nueve conjuntos son:
+
+- *CommonVoice*: voluntarios leyendo frases.
+- *FLEURS*: frases leídas, en muchos idiomas.
+- *LibriSpeech clean* y *other*: audiolibros, con grabaciones limpias o más difíciles.
+- *MLS*: audiolibros en varios idiomas.
+- *Switchboard*: llamadas telefónicas con habla espontánea.
+- *TEDLIUM*: charlas TED.
+- *VoxPopuli*: discursos del Parlamento Europeo.
+- *WSJ*: noticias del Wall Street Journal leídas en voz alta.
 
 | Conjunto de prueba | Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
 |---|---|---|---|---|---|---|---|
@@ -1159,7 +1552,7 @@ xychart-beta
    FLEURS, TEDLIUM, VoxPopuli y WSJ. Es decir, su ventaja promedio no es
    uniforme.
 
-4. **El tipo de audio importa más que el modelo.** En el base, el WER va de
+4. **El tipo de audio cambia mucho el resultado.** En el base, el WER va de
    3.6 % en LibriSpeech clean (lectura limpia de audiolibros) a 9.1 % en
    LibriSpeech other (lectura más difícil) y 22.9 % en Switchboard
    (conversación telefónica espontánea). El habla espontánea y con ruido es la
@@ -1172,7 +1565,15 @@ xychart-beta
 
 ### 6.5 Reconocimiento de voz multilingüe
 
-WER o CER (%) y horas de entrenamiento de cada idioma (tabla 3 del artículo):
+**Qué se evalúa:** qué tan bien transcribe cada modelo en otros idiomas, y cómo se
+relaciona el error con la cantidad de datos de entrenamiento.
+
+**Cómo leer la tabla (tabla 3 del artículo):** cada fila es un idioma con su conjunto de
+prueba. Las columnas *Horas* indican cuántas horas de audio de ese idioma se usaron para
+entrenar (K = mil). Los demás números son WER o CER en % (**menor es mejor**); el CER
+mide errores por letra y se usa en chino, coreano y japonés, que no separan las palabras
+con espacios (sección 6.1). Lo más útil es comparar el error de cada idioma con sus
+horas de entrenamiento.
 
 | Idioma (conjunto) | Métrica | Horas Whisper | Whisper base | Whisper medium | Horas OWSM | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
 |---|---|---|---|---|---|---|---|---|---|
@@ -1205,11 +1606,20 @@ WER o CER (%) y horas de entrenamiento de cada idioma (tabla 3 del artículo):
 3. **Frente a OWSM v3.** El medium mejora en 10 de 11 conjuntos y baja el
    promedio de 18.8 % a 15.2 %.
 
-4. **Frente a Whisper.** OWSM v3.1 todavía pierde en la mayoría de idiomas
-   europeos, donde Whisper tiene entre 1.2 y 29 veces más horas. Los autores
+4. **Frente a Whisper.** Al comparar modelos del mismo tamaño (medium contra
+   medium), OWSM v3.1 pierde en los 7 idiomas europeos, donde Whisper tiene entre
+   1.2 y 29 veces más horas. Los autores
    concluyen que el límite actual son los datos, no la arquitectura.
 
 ### 6.6 Traducción de voz
+
+**Qué se evalúa:** qué tan bien traduce el modelo directamente el habla a otro idioma
+(por ejemplo, audio en español → texto en inglés), sin pasar antes por una transcripción.
+
+**Cómo leer la tabla:** cada fila es el idioma del audio original. Se mide con BLEU
+(sección 6.1; de 0 a 100, **mayor es mejor**), que compara la traducción del modelo con
+una traducción humana de referencia. Para tener una idea de la escala, en español Whisper
+medium llega a 39.7 y el v3.1 base, a 10.0.
 
 **Hacia el inglés** (BLEU, CoVoST-2, tabla 4 del artículo):
 
@@ -1247,6 +1657,10 @@ traduce hacia el inglés.
 
 ### 6.7 Audio largo
 
+**Qué se evalúa:** qué pasa con audios largos (charlas completas), que no caben en una
+sola ventana de 30 s. **Cómo leer la tabla:** una sola fila con el WER de cada modelo
+en TEDLIUM (**menor es mejor**).
+
 Para audios de más de 30 s, el modelo procesa ventanas consecutivas de 30 s y
 avanza según las marcas de tiempo que predice. WER (%) en TEDLIUM con charlas
 completas (tabla 6 del artículo):
@@ -1263,6 +1677,11 @@ respalda la decisión de limitar nuestra aplicación a 30 s.
 
 ### 6.8 Identificación de idioma
 
+**Qué se evalúa:** si el modelo puede adivinar en qué idioma habla la persona (a través
+del token de idioma de la sección 3.8) cuando nadie se lo indica. **Cómo leer la tabla:**
+es la exactitud en %: de cada 100 audios de FLEURS, cuántos identifica con el idioma
+correcto (**mayor es mejor**).
+
 Exactitud (%) de identificación de idioma en FLEURS (tabla 7 del artículo):
 
 | Whisper base | Whisper small | Whisper medium | OWSM v3 medium | **v3.1 base** | v3.1 small | v3.1 medium |
@@ -1278,8 +1697,31 @@ aplicación le pide al usuario el idioma y lo fija en el prompt (`<spa>`,
 
 ### 6.9 Otros resultados del artículo
 
-**Comprensión del habla** (tabla 8, solo modelo medium). Se congela el encoder y
-se entrena encima un decoder pequeño para cada tarea:
+Además de transcribir y traducir, los autores probaron dos usos adicionales del modelo.
+Ninguno forma parte de nuestra aplicación; los incluimos porque muestran qué más sabe
+hacer el modelo y qué tan buenas son sus representaciones internas.
+
+#### a) Comprensión del habla (tabla 8, solo modelo medium)
+
+**Qué se evalúa:** si lo que aprende el encoder sirve para algo más que transcribir.
+En lugar de pedirle el texto, se **congela** el encoder (se usa tal cual, sin
+reentrenarlo) y se entrena encima un decodificador pequeño, nuevo, para cada tarea de
+comprensión. Si el encoder produce buenas representaciones del audio, ese decodificador
+pequeño las aprovecha y obtiene buenos resultados. Las cuatro tareas, en palabras
+simples (el artículo no las define con más detalle):
+
+- **Análisis de sentimiento:** decidir si lo que se dice es positivo, negativo o neutro.
+- **Reconocimiento de entidades:** encontrar nombres de personas, lugares,
+  organizaciones, fechas, etc. dentro de lo que se dice.
+- **Localización de entidades:** señalar **en qué momento del audio** se dice cada
+  entidad (por eso se mide por fragmentos de tiempo, *frames*).
+- **Clasificación de actos de diálogo:** decidir qué función cumple cada intervención en
+  una conversación (pregunta, afirmación, agradecimiento, etc.).
+
+**Cómo leer la tabla:** la métrica es **F1**, de 0 a 100 (**mayor es mejor**). Combina
+dos preguntas: *precisión* (de lo que el modelo marcó, cuánto era correcto) y
+*exhaustividad* (de lo que había que encontrar, cuánto encontró). *frame-F1* es lo mismo
+pero medido por fragmentos de tiempo.
 
 | Tarea | Métrica | OWSM v3 | OWSM v3.1 |
 |---|---|---|---|
@@ -1288,12 +1730,22 @@ se entrena encima un decoder pequeño para cada tarea:
 | Localización de entidades | frame-F1 | 40.5 | 50.4 |
 | Clasificación de actos de diálogo | F1 | 56.5 | 64.8 |
 
-El encoder E-Branchformer mejora en 3 de 4 tareas, con hasta 11 puntos más. Esto
-indica que sus representaciones (H) sirven también fuera de la transcripción.
+**Interpretación:** el encoder de v3.1 mejora en 3 de las 4 tareas (hasta 11 puntos en
+reconocimiento de entidades: de 54.8 a 65.8) y empeora en análisis de sentimiento (de
+60.1 a 56.2). Es decir, el E-Branchformer no solo ayuda a transcribir: sus
+representaciones también sirven para entender el contenido, aunque la mejora no es
+uniforme. Este resultado respalda la elección del E-Branchformer (sección 6.3), pero no
+afecta a nuestra aplicación, que solo transcribe y traduce.
 
-**Sesgo contextual sin entrenamiento** (tabla 9). Al darle al modelo una lista de
-100 palabras raras como prompt, se espera que las reconozca mejor (B-WER) sin
-empeorar las demás (U-WER). En LibriSpeech test-other:
+#### b) Sesgo contextual sin entrenamiento (tabla 9)
+
+**Qué se evalúa:** si el modelo puede reconocer mejor palabras difíciles o poco comunes
+(nombres propios, términos técnicos) cuando se le entregan de antemano, **sin
+reentrenarlo**. Se escribe una lista de 100 palabras como texto previo en el *prompt* y
+se mide si el modelo las transcribe mejor. La prueba usa LibriSpeech test-other y separa
+dos grupos de palabras: **B-WER** es el error sobre las palabras de la lista (*biased*) y
+**U-WER**, el error sobre todas las demás (*unbiased*). Lo ideal es que el B-WER baje
+(aprovecha la lista) sin que el U-WER suba (no se confunde con el resto).
 
 | Modelo | WER sin lista | WER con lista | U-WER sin → con | B-WER sin → con |
 |---|---|---|---|---|
@@ -1301,16 +1753,26 @@ empeorar las demás (U-WER). En LibriSpeech test-other:
 | v3.1 small | 6.16 | 5.89 | 4.21 → 4.48 | 23.27 → 18.34 |
 | v3.1 medium | 5.31 | 5.03 | 3.52 → 3.86 | 21.12 → 15.35 |
 
-El modelo base empeora: no distingue las palabras útiles de las distractoras.
-Small y medium sí aprovechan la lista. Los autores lo interpretan como una
-**habilidad emergente**, que solo aparece a partir de cierto tamaño, como en los
-grandes modelos de lenguaje. Esto justifica que nuestra aplicación no use el
-prompt de texto previo (`text_prev`) con el modelo base.
+**Interpretación:** small y medium aprovechan la lista: su B-WER baja de 23.27 a 18.34 y
+de 21.12 a 15.35, con un costo pequeño en el U-WER (sube menos de 0.4 puntos). El base
+no: su B-WER casi no mejora (32.17 → 30.36) y su U-WER sube mucho (6.89 → 10.45), así
+que el WER total empeora (9.48 → 12.49), porque el *prompt* lo confunde. Los autores lo
+describen como una **habilidad emergente**: solo aparece a partir de cierto tamaño del
+modelo, como se ha observado en los grandes modelos de lenguaje. Para nuestro proyecto,
+esto justifica que la aplicación no use el texto previo (`text_prev`) con el modelo base.
 
 ### 6.10 Resultados de nuestras pruebas de inferencia
 
-Hasta ahora, el repositorio tiene documentada una prueba de la aplicación, con su
-captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
+Esta sección reúne lo que **medimos nosotros** al ejecutar el modelo en un computador
+sin GPU. Las secciones 6.1 a 6.9 resumen lo que publican los autores; aquí comprobamos
+qué pasa en nuestro caso. Tiene dos partes: primero, la primera prueba de la aplicación
+(sin texto de referencia) y, después, las pruebas con referencia (6.10.1 a 6.10.9), que
+permiten medir cuánto se equivoca el modelo. Cada subsección empieza con **qué
+analizamos** y termina con **en pocas palabras**, para poder leerla sin conocer el resto.
+
+**Primera prueba de la aplicación.** *Qué analizamos:* si la aplicación funciona de
+extremo a extremo y cuánto tarda. La captura de pantalla está en
+[`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
 
 | Campo | Valor |
 |---|---|
@@ -1336,8 +1798,9 @@ captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
    Pero el modelo no procesa 3.7 s: rellena con silencio hasta 30 s (sección
    5.4), así que el encoder trabaja siempre sobre 749 frames. Medido sobre la
    ventana real, el costo es 21.18 / 30 ≈ **0.71 s por segundo de audio**. Por
-   eso el RTF de un audio corto siempre parece alto: el costo del encoder es casi
-   fijo.
+   eso el RTF de un audio corto parece alto. (Esta explicación se corrige en la
+   sección 6.10.5: con más mediciones, el tiempo depende sobre todo de los
+   tokens generados.)
 
 3. **Diferencias con la velocidad del artículo.** El artículo mide en una GPU
    A40, con decodificación *greedy* y sin extraer la atención. Nuestra medición
@@ -1350,29 +1813,606 @@ captura de pantalla en [`docs/AVANCE-PROYECTO.pdf`](docs/AVANCE-PROYECTO.pdf):
    seguros con algunos dudosos; la tabla de tokens de la interfaz permite ver
    cuáles son.
 
-5. **Sin WER propio todavía.** La prueba no registró la frase que se dijo
-   realmente, así que no se puede calcular el error. Si la frase pronunciada fue
-   exactamente "vamos a sacar cinco en esta tarea", el WER de esta prueba sería
-   0 %. Como referencia, el artículo reporta un 18.5 % para el modelo base en
-   español leído (sección 6.5).
+5. **Sin WER propio en esa prueba.** No se registró la frase que se dijo realmente,
+   así que no se pudo calcular el error. Se resuelve en las pruebas con
+   referencia de las secciones siguientes.
 
-**Pruebas pendientes para completar esta sección:**
+#### 6.10.1 Diseño de las pruebas con referencia
 
-- [ ] Grabar entre 5 y 10 audios propios con su transcripción de referencia y
-      calcular el WER y el CER.
-- [ ] Repetir una misma prueba dos veces para separar la primera ejecución
-      (carga) de las siguientes.
-- [ ] Medir el RTF con audios de distinta duración (5, 15 y 30 s) y verificar
-      que el tiempo es casi constante.
-- [ ] Probar inglés (`<eng>`) y una traducción (`<st_eng>`) y comparar con las
-      tablas 6.4 y 6.6.
-- [ ] Agregar capturas de los mapas de cross-attention y analizar el patrón
-      diagonal.
+**Qué analizamos:** cuánto se equivoca el modelo al transcribir español con una voz real,
+y cómo cambia con ruido, con otra configuración de búsqueda y con audios problemáticos.
+Para medir un error hay que saber qué se dijo realmente, así que leímos en voz alta textos
+conocidos (la **referencia**) y comparamos con lo que escribió el modelo (la **hipótesis**).
+
+Para medir el error se grabaron 44 audios con la voz del autor, en un computador
+Windows sin GPU, con `ctc_weight = 0` y *beam search* de 5 (la configuración de la
+aplicación). Hay dos tipos de texto de referencia, para poder comparar:
+
+- **Libro:** 24 frases de *Noches blancas* de Dostoievski (traducción al español de
+  una edición digital libre), de 6 a 16 palabras. Es lenguaje literario del siglo
+  XIX, con palabras poco frecuentes.
+- **Cotidiano:** 12 frases escritas por nosotros, de 10 a 13 palabras, sobre
+  situaciones de todos los días (café, reunión, bus, llaves).
+
+Los fragmentos del libro y los audios no se publican en el repositorio.
+
+| Grupo | Audios | Contenido |
+|---|---|---|
+| Frases del libro | `corta01` a `corta12`, `media01` a `media12` | 24 frases, 256 palabras |
+| Frases cotidianas | `diaria01` a `diaria12` | 12 frases, 136 palabras |
+| Largo | `larga` (26 s), `muylarga` (42 s) | 68 y 109 palabras; `muylarga` supera la ventana de 30 s |
+| Inglés | `ingles01` a `ingles04` | 4 frases de 10 a 13 palabras |
+| Traducción | `traduccion01` | Una frase en español pedida con `<st_eng>` |
+| Silencio | `silencio` (19 s) | Sin hablar |
+
+Las pruebas con ruido y de *beam search* usan las 36 frases (392 palabras). Antes de
+calcular el error, ambos textos se normalizan: minúsculas, sin puntuación y números
+escritos con palabras. Todo se ejecutó con `scripts/evaluar.py` (sección 6.11).
+
+**Cómo se calcularon los valores.**
+
+1. Grabamos cada frase leyéndola en voz alta (audio mono de 16 kHz).
+2. El modelo la transcribió (la hipótesis).
+3. Normalizamos ambos textos, para no contar como error diferencias de formato:
+   minúsculas, sin puntuación y números escritos con letras.
+4. Contamos los errores palabra por palabra: sustituidas (S), borradas (D) e
+   insertadas (I). **WER = (S + D + I) / N**, donde N es el número de palabras de la
+   referencia (sección 6.1). Ejemplo: la referencia "el bus llegó tarde y por eso no
+   alcancé a desayunar" (11 palabras) salió "el bus llegó tarde y por eso no alcance ha
+   desayunar". Hay 2 sustituciones ("alcancé" → "alcance", "a" → "ha"), así que
+   WER = 2 / 11 = 18.2 %.
+5. El **WER de un grupo** de frases se calcula sumando los errores de todas y dividiendo
+   entre el total de palabras (no se promedian los porcentajes de cada frase).
+6. El **CER** es lo mismo, pero contando letras en lugar de palabras.
+7. La **confianza** es el promedio de la probabilidad que el modelo asigna a cada token
+   (cada pedazo de palabra) que escribe: 1 sería seguridad total.
+
+**Cómo se calculó el intervalo de confianza.** El WER depende de qué frases escogimos:
+con otras frases habría salido un número distinto. Para saber cuánto podría variar, usamos
+una técnica llamada *bootstrap* (remuestreo):
+
+1. Del grupo de frases (por ejemplo, las 36) se sacan 36 **al azar con reemplazo**: una
+   misma frase puede salir varias veces y otra no salir.
+2. Se calcula el WER de esa muestra.
+3. Se repite 5000 veces, con lo que se obtienen 5000 WER ligeramente distintos.
+4. Se ordenan y se descarta el 2.5 % más bajo y el 2.5 % más alto. El rango que queda
+   es el **intervalo de confianza del 95 %**.
+
+Se lee así: "20.7 %, con intervalo de 15.7 a 25.8" significa que, con otras frases
+parecidas, el WER probablemente estaría entre 16 % y 26 %. Cuantas más palabras se
+miden, más angosto es el intervalo. También lo usamos para comparar dos grupos: si sus
+intervalos se solapan mucho, no podemos asegurar que la diferencia sea real.
+
+#### 6.10.2 Precisión: WER y CER
+
+**Qué analizamos:** cuántas palabras escribe mal el modelo en español con nuestra voz, y si
+el error cambia entre las frases del libro (vocabulario literario del siglo XIX) y las
+frases cotidianas.
+
+| Grupo | Palabras | Palabras erradas | WER | IC 95 % |
+|---|---|---|---|---|
+| Libro, frases cortas (`corta`) | 100 | 24 | 24.0 % | |
+| Libro, frases medias (`media`) | 156 | 36 | 23.1 % | |
+| **Libro, total** | 256 | 60 | **23.4 %** | 17.7 a 29.2 |
+| **Cotidiano** | 136 | 21 | **15.4 %** | 7.0 a 24.5 |
+| **Las 36 frases** | 392 | 81 | **20.7 %** | 15.7 a 25.8 |
+| Largo (`larga`, 26 s) | 68 | | 26.5 % | |
+| Inglés (4 frases) | 44 | 5 | 11.4 % | |
+
+![WER por frase](docs/figuras/p1_wer_por_frase.png)
+
+![Libro contra cotidiano](docs/figuras/p1_libro_vs_cotidiano.png)
+
+**Resultados:**
+
+1. **WER global de las 36 frases: 20.7 %** (81 palabras erradas de 392), con un
+   intervalo de 15.7 a 25.8 %. El artículo reporta 18.5 % para el modelo base en
+   español leído (sección 6.5), que cae dentro del intervalo: **no podemos decir
+   que el modelo rinda peor ni mejor que lo que reporta el artículo.**
+2. **Libro contra cotidiano.** Con frases cotidianas el WER fue 15.4 %, frente a
+   23.4 % con las del libro, una diferencia de 8.0 puntos. Va en el sentido que
+   esperábamos (el vocabulario literario cuesta más), pero **el intervalo de la
+   diferencia va de −2.8 a 18.3 puntos**: con estos datos no se puede asegurar que
+   sea real. Además, el libro tiene palabras muy poco frecuentes en las que el
+   modelo falla ("abuelita", "sollozo", "niebla" salieron "vuelita", "soyoso",
+   "nieula"), pero también falló en palabras comunes ("hasta mañana" salió "esta
+   mañana"). Hay más frases cotidianas perfectas (5 de 12) que del libro (2 de 24).
+3. **El CER es menor que el WER** (promedio por frase de 6.9 % en el libro y 5.0 %
+   en las cotidianas, frente a WER de 23.4 % y 15.4 %): las palabras erradas suelen
+   parecerse en sonido a la correcta. Un error de una sola letra cuenta como palabra
+   entera en el WER.
+4. **La confianza anticipa el error, pero poco.** En las 36 frases, la confianza
+   media por token y el WER tienen una correlación de −0.43: las frases con más
+   confianza tienden a tener menos error, pero con mucha dispersión. Sirve como
+   señal de alerta, no como medida.
+5. **`muylarga`.** El WER crudo (46.8 %) está inflado: el modelo solo procesó los
+   primeros 30 s (sección 6.10.7). Contra la parte de la referencia que cabe en
+   ese tiempo (las primeras 77 de 109 palabras, suponiendo ritmo constante), el WER
+   es de ≈ 24.7 %, parecido al de `larga`.
+
+**Cómo leer las figuras.** La primera muestra el WER de cada frase (una barra por frase;
+sin barra significa 0 % de error). Se ve que el error varía mucho de una frase a otra, de
+0 % a más de 50 %. La segunda compara los dos grupos con su intervalo de confianza (la
+línea vertical de cada barra): como los intervalos se solapan, la diferencia entre libro y
+cotidiano no es concluyente.
+
+**En pocas palabras:** el modelo se equivoca en aproximadamente 1 de cada 5 palabras en
+español, un resultado compatible con el del artículo (18.5 %). Con las frases del libro
+el error fue mayor que con las cotidianas, pero no podemos asegurar que esa diferencia sea
+real con tan pocas frases.
+
+#### 6.10.3 Efecto del ruido
+
+**Qué analizamos:** qué pasa con el error cuando hay ruido de fondo. Para controlarlo,
+sumamos ruido artificial a las mismas 36 frases, siempre con el mismo método.
+
+Se sumó ruido blanco gaussiano (un "siseo" constante, como el de una radio mal
+sintonizada) a las 36 frases con una relación señal/ruido (**SNR**) dada. La SNR, en
+decibelios (dB), indica cuánto más fuerte es la voz que el ruido: **una SNR menor
+significa más ruido**. Como referencia, 20 dB es un ruido leve, 10 dB es moderado y 5 dB
+es fuerte, con la voz apenas por encima del ruido.
+
+| Condición | WER |
+|---|---|
+| Sin ruido | 20.7 % |
+| SNR 20 dB | 24.0 % |
+| SNR 10 dB | 40.6 % |
+| SNR 5 dB | 55.4 % |
+
+![WER contra ruido](docs/figuras/p2_ruido.png)
+
+El WER sube a medida que baja la SNR: de 20.7 % a 55.4 % con SNR de 5 dB, es decir
+que con ese nivel de ruido el modelo se equivoca en más de la mitad de las
+palabras. Es ruido blanco sintético, fácil de reproducir pero distinto del ruido
+de un lugar real (voces, ventiladores, calle), así que las cifras son una guía y no
+una predicción para un ambiente concreto.
+
+**En pocas palabras:** con ruido leve el modelo casi no cambia, pero con ruido moderado el
+error se duplica y con ruido fuerte supera el 50 %. Para usar el modelo conviene grabar en
+un lugar tranquilo.
+
+#### 6.10.4 *Beam search* de 5 contra *greedy*
+
+**Qué analizamos:** si la forma de buscar el texto cambia el resultado. El decoder escribe
+una palabra (token) a la vez, y hay dos formas de escoger:
+
+- ***Greedy* (codicioso, beam 1):** en cada paso elige solo el token más probable y sigue.
+  Es rápido, pero no puede corregir una mala elección anterior.
+- ***Beam search* con 5 (beam 5):** mantiene a la vez las 5 mejores frases parciales y, al
+  terminar, se queda con la más probable en conjunto. Explora más opciones, pero es más
+  lento.
+
+Nuestra aplicación usa beam 5 (sección 5.6); el artículo evalúa con *greedy* (sección 6.2).
+Aquí comprobamos si ese costo extra vale la pena.
+
+| Beam | WER (36 frases) | Tiempo medio por frase |
+|---|---|---|
+| 1 (*greedy*) | 21.7 % | 1.8 s |
+| 5 | 20.7 % | 4.6 s |
+
+![Beam search](docs/figuras/p3_beam.png)
+
+La diferencia de WER es de 1 punto (unas 4 palabras de 392), pequeña frente al
+intervalo de ±5 puntos de la medición, así que **no hay evidencia de que el beam
+search de 5 mejore el resultado en este conjunto**. Sí cuesta unas 2.6 veces más
+tiempo. En una primera corrida, con solo 8 frases (94 palabras), la diferencia
+parecía de 6 puntos; con más datos desapareció. Esto muestra por qué hace falta una
+muestra grande antes de sacar conclusiones. Estos tiempos no incluyen la segunda
+pasada para leer la atención.
+
+**En pocas palabras:** beam 5 casi no mejora la precisión en nuestras pruebas y tarda más
+del doble, así que no se justifica en este conjunto de frases.
+
+#### 6.10.5 Tiempo de inferencia
+
+**Qué analizamos:** cuánto tarda el modelo en nuestro computador (sin GPU) y de qué
+depende ese tiempo. Usamos el **RTF** (*real-time factor*): tiempo de cálculo dividido
+entre la duración del audio. Un RTF de 1 significa que procesar un audio tarda lo mismo
+que lo que dura; menor que 1, más rápido que el audio; mayor que 1, más lento. Un *token*
+es cada pedazo de palabra que escribe el decoder.
+
+![Tiempo contra tokens](docs/figuras/p1_tiempo_vs_tokens.png)
+
+En los audios con voz (43 audios), el tiempo de inferencia sigue casi una recta con
+los tokens que escribe el decoder: **≈ 2.2 s + 0.18 s por token**, con correlación
+de 0.99. Es coherente con el funcionamiento autorregresivo (sección 5.6): el
+encoder corre una sola vez y el decoder corre una vez por cada token.
+
+**Matiz sobre la sección anterior (prueba inicial).** El análisis de la primera
+prueba atribuye el RTF alto al costo fijo del encoder, que procesa siempre los
+30 s. Nuestras mediciones respaldan que existe una parte fija, pero pequeña en este
+equipo (≈ 2.2 s, frente a los ≈ 21 s de la prueba inicial) y que el resto depende
+de los tokens. Esa parte fija pesa mucho en audios muy cortos (`corta05`, de
+2.9 s, tuvo RTF 2.1) y poco en los largos. En general el RTF de los audios con voz
+fue de 0.3 a 2.1, con promedio de 0.98 (con la salvedad de que las pruebas se
+hicieron en un computador distinto al de la prueba inicial).
+
+![RTF por audio](docs/figuras/p1_rtf_sin_silencio.png)
+
+**Cómo leer las figuras.** La primera tiene un punto por audio: en el eje horizontal, los
+tokens que escribió el modelo; en el vertical, cuánto tardó. Los puntos siguen una línea
+casi recta. La segunda muestra el RTF de cada audio, con una línea roja en RTF = 1
+(tiempo real): una barra **por encima** de la línea significa que el modelo tardó más de
+lo que dura el audio (peor), y una barra **por debajo**, que tardó menos (mejor).
+
+Casi la mitad de los audios queda por encima de 1 (20 de 43) y el promedio es 0.98, así
+que en nuestro computador el modelo trabaja aproximadamente en tiempo real. Hay una
+**tendencia, no una regla**: los audios de menos de 5 s tuvieron un RTF medio de 1.18, los
+de 5 a 7 s, entre 0.9 y 1.0, y los de más de 7 s, alrededor de 0.7. Se debe a que la parte
+fija del tiempo (≈ 2.2 s) pesa más cuando el audio es corto. Hay excepciones: `corta05`
+(2.9 s) tuvo RTF 2.1, y `corta01` dura 11 s para una frase de 9 palabras, por lo que su
+RTF fue de solo 0.28 (el RTF baja cuando la grabación es larga para lo poco que se dice).
+
+**En pocas palabras:** el tiempo depende sobre todo de cuántas palabras escribe el modelo,
+no de cuánto dura el audio. En CPU el modelo base trabaja cerca del tiempo real, y es
+algo más lento que el audio cuando este dura menos de 5 s.
+
+#### 6.10.6 Resumen de resultados propios
+
+**Qué reúne:** las cifras principales de las pruebas anteriores, en una sola tabla.
+
+| Medida | Valor |
+|---|---|
+| WER global, 36 frases con beam 5 | 20.7 % (392 palabras, IC 95 % 15.7 a 25.8) |
+| WER libro / cotidiano | 23.4 % / 15.4 % (diferencia no concluyente) |
+| Referencia del artículo, español, modelo base | 18.5 % (sección 6.5) |
+| WER con SNR de 20, 10 y 5 dB | 24.0 %, 40.6 % y 55.4 % |
+| WER con *greedy* | 21.7 % (sin diferencia clara con beam 5) |
+| Tiempo medio con voz y beam 5 | 6.2 s por audio (RTF medio 0.98, 43 audios) |
+| Tiempo por token | ≈ 0.18 s, más ≈ 2.2 s fijos |
+
+**En pocas palabras:** el modelo se equivoca en 1 de cada 5 palabras (en línea con el
+artículo), empeora mucho con ruido fuerte, y la búsqueda con 5 hipótesis no aporta una
+mejora clara.
+
+#### 6.10.7 Audio de más de 30 s
+
+**Qué analizamos:** qué hace el modelo con un audio más largo que su ventana de 30 s.
+
+`muylarga` dura 42 s. ESPnet lo recortó a 30 s y lo avisó con una advertencia
+(*"trimming the input ... to 480000 samples"*), que también sugiere usar
+`decode_long()` para audios largos. El texto obtenido corresponde solo al
+tramo inicial. Esto confirma la limitación de la ventana fija de 30 s (sección
+6.7). Con `larga` (26 s), que sí cabe en la ventana, el modelo mantiene la
+alineación en todo el audio (sección 6.12).
+
+**En pocas palabras:** el modelo base no puede transcribir un audio de más de 30 s de una
+sola vez; hay que dividirlo en ventanas.
+
+#### 6.10.8 Inglés y traducción
+
+**Qué analizamos:** cómo se comporta el modelo con otro idioma (inglés) y con la tarea de
+traducir (español → inglés), que el artículo describe como su punto débil (sección 6.6).
+
+- **Inglés** (4 frases, 44 palabras): WER de 11.4 %. Casi todos los errores son
+  verbos en pasado o presente que el modelo escribió sin la terminación ("record"
+  por "recorded", "stage" por "stayed"), que quizás se debe a la pronunciación del
+  autor, hablante nativo de español; no lo comprobamos. Son pocas frases y una sola
+  voz, así que no equivale a medir el WER en inglés; para eso está la tabla del
+  artículo (12.1 % de promedio para el modelo base, sección 6.4).
+- **Traducción de español a inglés** (`traduccion01`): la salida mezcla palabras
+  en inglés y español y no se entiende como una traducción; la confianza media
+  fue de 0.40, la más baja salvo el silencio (en las transcripciones fue de 0.7 a 0.87).
+  Es **una sola frase**, así que no mide la calidad de la traducción y no se puede
+  comparar con el BLEU de 10.0 del artículo (sección 6.6), que es una medida distinta,
+  calculada sobre miles de frases. Lo único que podemos decir es que nuestro ejemplo salió
+  mal, en la misma dirección que el artículo.
+
+**En pocas palabras:** en inglés el modelo funciona de forma razonable con frases simples;
+la traducción, en nuestro único ejemplo, salió mal (sin una medida que permita generalizar).
+
+#### 6.10.9 Silencio: alucinación
+
+**Qué analizamos:** qué escribe el modelo cuando no hay nadie hablando. Una **alucinación**
+es texto que el modelo produce sin que exista en el audio.
+
+Con 19 s de silencio el modelo no devolvió una cadena vacía: escribió 48 tokens
+que repiten una misma frase varias veces. Esto ocurrió igual en las dos corridas.
+Dos observaciones:
+
+- La confianza media fue la más baja de todas (0.31), por lo que podría servir
+  para detectar este caso.
+- La inferencia tardó 176 s (RTF 9.1) frente a los 23 s de `larga`, que
+  escribió 110 tokens (más del doble). No medimos la causa, pero es compatible con
+  que la búsqueda no terminara pronto (`maxlenratio = 0` permite hasta 749 tokens,
+  sección 4.4).
+
+La atención en este caso se ve en la sección 6.12.
+
+**En pocas palabras:** ante el silencio el modelo inventa texto y tarda mucho; conviene
+detectar la ausencia de voz antes de transcribir y desconfiar de las salidas con confianza
+baja.
+
+#### 6.10.10 Comparación directa con el artículo
+
+**Qué analizamos:** si lo que medimos nosotros es compatible con lo que reportan los
+autores para el modelo base, tarea por tarea. Los autores evalúan con miles de audios y
+con conjuntos de prueba oficiales (secciones 6.2 a 6.9); nosotros, con 36 frases de una
+sola voz (más los casos especiales). Por eso la última columna dice "compatible" cuando
+nuestro valor cae dentro de lo esperable y nunca "confirmado".
+
+**Cómo leer la tabla:** cada fila es una tarea o servicio del modelo. La segunda columna
+trae el resultado del artículo para el modelo base; la tercera, el nuestro; la cuarta
+dice qué podemos concluir.
+
+| Tarea o servicio | Artículo (modelo base) | Nuestras pruebas | Lectura |
+|---|---|---|---|
+| **Español leído** | 18.5 % de WER (MLS, audiolibros) | 20.7 % de WER en 36 frases (intervalo de 15.7 a 25.8 %) | **Compatible:** el valor del artículo cae dentro de nuestro intervalo |
+| **Inglés** | 12.1 % de WER promedio en 9 conjuntos (de 3.6 % a 22.9 % según el tipo de audio) | 11.4 % en 4 frases (44 palabras) | **Compatible,** pero con muy pocas frases, solo orientativo |
+| **Traducción español → inglés** | BLEU 10.0 (Whisper medium: 39.7) | 1 frase: salida mezclada e ininteligible, confianza 0.40 | **Sin comparación válida:** una sola frase y sin BLEU. El ejemplo salió mal, en la misma dirección que el artículo |
+| **Audio largo (más de 30 s)** | WER de 7.8 % (frases cortas) a 9.6 % (charlas completas) | `muylarga` (42 s) se recorta a 30 s; en el tramo procesado el WER fue ≈ 24.7 %, similar al de `larga` | **Confirma la limitación:** el modelo no procesa más de 30 s de una vez. Los WER no son comparables (otro tipo de audio) |
+| **Identificación de idioma** | 41.9 % de exactitud (la peor de la tabla) | No medida: la aplicación fija el idioma en el *prompt* | Sin comparación. Nuestra decisión de fijar el idioma se apoya en el artículo |
+| **Velocidad** | 3.67 veces más rápido que OWSM v3 medium (GPU A40, *greedy*) | RTF de 0.98 en CPU, con *beam search* de 5 y extracción de la atención | **No comparable:** distinto equipo y configuración. Lo que sí se ve es que corre en CPU casi en tiempo real |
+| **Comprensión del habla; sesgo contextual** | Se evalúan solo en el artículo (el base empeora con la lista de palabras) | No probadas | Sin comparación. No forman parte de la aplicación |
+| **Ruido, silencio y atención** | No se evalúan en el artículo | WER de 20.7 % a 55.4 % al bajar la SNR a 5 dB; alucinación con silencio; capas 4 a 6 alineadas con el audio | **Aporte propio** de este proyecto |
+
+**Por tipo de audio (solo nuestras pruebas).** El artículo no reporta resultados por
+longitud de la frase, así que esta comparación es solo entre nuestros audios:
+
+| Tipo de audio | Palabras | WER |
+|---|---|---|
+| Frases cortas del libro (6 a 10 palabras) | 100 | 24.0 % |
+| Frases medias del libro (10 a 16 palabras) | 156 | 23.1 % |
+| Frases cotidianas (10 a 13 palabras) | 136 | 15.4 % |
+| Audio largo (`larga`, 26 s) | 68 | 26.5 % |
+| Inglés (4 frases) | 44 | 11.4 % |
+
+No encontramos diferencia clara por longitud: cortas y medias dan casi lo mismo (24.0 % y
+23.1 %), y el audio largo que cabe en la ventana también es parecido (26.5 %). La
+diferencia mayor es entre el texto del libro y el cotidiano, pero, como vimos en 6.10.2,
+no es concluyente con tan pocas frases.
+
+**En pocas palabras:** donde podemos compararnos con el artículo (español, inglés,
+traducción y audio largo), nuestros resultados son compatibles con los suyos. Donde no
+(identificación de idioma, velocidad, comprensión del habla y sesgo contextual), no hay
+comparación posible con nuestros datos. Y el ruido, el silencio y la atención son aportes
+propios que el artículo no cubre.
+
+### 6.11 Cómo reproducir las pruebas
+
+Los scripts están en `scripts/` y se ejecutan con `uv` desde la raíz del repositorio:
+
+```bash
+# 1. Grabar los audios, leyendo audios/referencias.csv (WAV mono de 16 kHz)
+uv run --with sounddevice --with soundfile python scripts/grabar.py
+
+# 2. Probar con un solo audio
+uv run --with jiwer --with num2words python scripts/evaluar.py --prueba
+
+# 3. Corrida completa: precisión, ruido y beam search
+uv run --with jiwer --with num2words python scripts/evaluar.py --ruido 20 10 5 --beams 1 5
+
+# 4. Gráficas adicionales (tiempo contra tokens, RTF)
+uv run --with matplotlib --with numpy python scripts/graficar_resultados.py
+```
+
+Los audios y el `referencias.csv` real no se publican (la voz es del autor y la
+referencia incluye fragmentos de un libro); en `audios/referencias.ejemplo.csv` hay
+una plantilla y las instrucciones están en `audios/README.md`. Los resultados
+numéricos de nuestra corrida están en `docs/resultados/`.
+
+`audios/referencias.csv` tiene una fila por audio con las columnas `archivo`, `tipo`
+(`frase`, `largo`, `ingles`, `traduccion`, `silencio`), `idioma`, `tarea`,
+`figura` (1 para guardar sus mapas de atención), `referencia` y `leer` (texto
+a leer cuando difiere de la referencia, como en la traducción). El script genera
+en `resultados/` las tablas `p1_resultados.csv`, `p2_ruido.csv` y `p3_beam.csv`,
+el resumen `resumen.json` y todas las figuras. Reutiliza las funciones
+`inferir_con_atencion` y `figura_atencion` de `owsm_demo/`.
+
+### 6.12 Análisis de la cross-attention
+
+**Qué analizamos:** a qué parte del audio mira el modelo cuando escribe cada palabra (la
+*cross-attention*, sección 5.7), y si eso permite entender sus aciertos y sus errores.
+
+Cada fila del mapa es un token generado y cada columna, un frame de 40 ms de H.
+Se observaron cuatro cosas.
+
+**1. En el habla, la atención sigue el orden del audio.** El mapa tiene un patrón
+diagonal claro: cada token mira el tramo donde se pronunció esa palabra.
+
+![Atención en una frase media](docs/figuras/atencion_media01.png)
+
+En `larga` la diagonal se mantiene a lo largo de los 26 s y los tokens de puntuación
+caen en las pausas del espectrograma.
+
+![Atención en un audio largo](docs/figuras/atencion_larga.png)
+
+**2. Los errores se ven en el mapa.** En `corta01`, los tokens de "a" y "divi"
+(que reemplazan "adiviné") miran justo el tramo en que se dijo esa palabra: el
+modelo atiende al lugar correcto y se equivoca al escribir.
+
+![Atención en corta01](docs/figuras/atencion_corta01.png)
+
+**3. Las capas y las cabezas se especializan.**
+
+*Qué es la matriz.* El decoder tiene 6 capas y cada capa tiene 6 cabezas de atención
+(36 en total). Cada cabeza produce su propio mapa de atención como los de arriba: para
+cada token que se escribe, indica en qué parte del audio está mirando. Los 36 mapas no
+se comportan igual. La matriz de abajo resume en **un solo número por cabeza** si su
+mapa tiene forma de diagonal (el modelo recorre el audio de izquierda a derecha mientras
+escribe) o no. Cada casilla es una cabeza: la fila es la capa, la columna es la cabeza, y
+el color y el número indican qué tan diagonal es.
+
+*Cómo se calcula.*
+
+1. En cada mapa, para cada token se toma el instante del audio donde esa cabeza atiende
+   más (el pico). Así queda una lista: token 1 → instante a, token 2 → instante b, etc.
+   (se excluye el último token, `<eos>`, que marca el final).
+2. Si el modelo va leyendo el audio en orden, esos instantes **aumentan** a medida que
+   avanzan los tokens. Por ejemplo, tokens 1 a 5 que miran los instantes 10, 60, 120,
+   200 y 300 siguen el orden perfecto; en cambio 300, 10, 200, 60 y 120 no tienen orden.
+3. Se mide qué tan ordenada es la lista con la **correlación de Spearman** entre el
+   número del token y el instante del pico: **1** significa orden perfecto (diagonal), **0**
+   significa que no hay relación, y un valor negativo significaría que recorre el audio al
+   revés.
+4. Se hace para cada una de las 36 cabezas en cada audio, y se **promedia sobre los 42
+   audios** con voz (frases, largos e inglés). Eso da la matriz de 6 × 6.
+
+*Cómo se interpreta.* Mientras más amarilla (cercana a 1), más diagonal es la cabeza: cada
+palabra se asocia con el tramo del audio donde se dijo, en orden. Las casillas oscuras son
+cabezas cuya atención no sigue el orden del audio.
+
+![Diagonalidad por capa y cabeza](docs/figuras/p1_diagonalidad.png)
+
+| Capa | 1 | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|---|
+| Diagonalidad media | 0.21 | 0.55 | 0.52 | 0.88 | 0.91 | 0.89 |
+
+*Qué concluimos.*
+
+- **Las capas 4 a 6 sí siguen el audio en orden:** 14 de sus 18 cabezas superan 0.9
+  (varias llegan a 1.00). En las capas 1 a 3 solo 2 de las 18 lo hacen. Es decir, la
+  conexión entre el texto y el audio se concentra en las últimas capas.
+- **No todas las cabezas hacen lo mismo,** incluso en una misma capa. Por ejemplo, la
+  cabeza 2 de la capa 6 (0.54) no sigue el orden y las otras cinco de esa capa sí.
+- **Consecuencia práctica:** si queremos mostrar en la aplicación "dónde mira el modelo",
+  conviene usar las capas 4 a 6 (la mejor cabeza fue la 3 de la capa 5); las primeras capas dan
+  mapas difusos y difíciles de interpretar.
+- **Lo que no podemos decir:** esta medida solo comprueba el **orden**, no que el pico caiga
+  exactamente en el lugar correcto del audio. Tampoco sabemos por qué las primeras capas
+  no se alinean con el audio (es un hallazgo descriptivo). Una hipótesis razonable es que
+  se ocupan de otra cosa, como el contexto del texto ya escrito, pero no la comprobamos.
+
+Los mapas completos de una frase muestran la diferencia: en la capa 6 casi todas las
+cabezas dibujan una diagonal, y en la capa 1 la atención está dispersa.
+
+![Cabezas de la capa 6](docs/figuras/cabezas_media01_capa6.png)
+
+![Cabezas de la capa 1](docs/figuras/cabezas_media01_capa1.png)
+
+**4. Sin voz, la atención pierde la alineación.** En el silencio no hay diagonal:
+la atención se concentra en los primeros frames del audio (menos de 0.3 s) y en un
+chasquido cerca de los 15 s, mientras el decoder repite la misma frase.
+
+![Atención en el silencio](docs/figuras/atencion_silencio.png)
+
+El patrón diagonal puede usarse como señal de que el texto corresponde al audio.
+Su ausencia, junto con una confianza baja, delata una alucinación.
+
+### 6.13 Limitaciones
+
+- **Ventana fija de 30 s.** Los audios más largos se recortan (`muylarga`: de 42 a
+  30 s) y el artículo muestra que el modelo rinde peor en audio largo (sección 6.7).
+- **Pocos datos por idioma.** El modelo base obtiene 18.5 % de WER en español leído
+  según el artículo, y 20.7 % en nuestras 36 frases (IC 95 % de 15.7 a 25.8). En portugués y polaco
+  supera el 44 % (sección 6.5). El límite son los datos, no la arquitectura.
+- **Sensibilidad al ruido.** Con SNR de 5 dB, el WER sube a 55.4 %.
+- **Traducción débil.** BLEU de 10.0 de español a inglés en el artículo; en nuestra
+  única frase de prueba la salida salió ininteligible (sección 6.10.8), sin que eso baste
+  para medir la calidad.
+- **Alucinación con silencio.** Escribe texto repetido, con confianza baja, y tardó
+  176 s (sección 6.10.9).
+- **Identificación de idioma poco fiable.** Solo el 41.9 % de exactitud en el base
+  (sección 6.8), por eso la aplicación fija el idioma en el prompt.
+- **Velocidad.** El tiempo depende de los tokens (≈ 0.18 s por token en nuestro
+  equipo, sin GPU) y no hay garantía de tiempo real.
+- **Alcance de las pruebas propias.** Una sola voz y un solo micrófono, 392 palabras
+  en las pruebas de precisión (intervalo de ±5 puntos), ruido blanco sintético y
+  4 frases en inglés.
+  Las cifras son orientativas y no equivalen a evaluar en los conjuntos oficiales.
+- **Sin CTC en la inferencia.** Se usa `ctc_weight = 0` para poder explicar la
+  salida con la cross-attention; la decodificación híbrida suele ser más robusta
+  ante repeticiones u omisiones (sección 4.4).
+
+### 6.14 Posibles mejoras
+
+- **Audios largos:** usar `decode_long()`, que ESPnet sugiere en su advertencia, o
+  procesar por ventanas de 30 s avanzando con las marcas de tiempo (sección 6.7).
+- **Silencio:** detectar la ausencia de voz antes de decodificar y limitar la longitud
+  máxima (`maxlenratio` mayor que 0) para evitar tiempos como los 176 s observados.
+- **Confianza:** avisar al usuario cuando la confianza media sea baja (en nuestras
+  pruebas, 0.31 en el silencio y 0.40 en la traducción fallida).
+- **Interfaz:** agregar un campo de texto de referencia para calcular WER y CER, y un
+  selector del tamaño del haz.
+- **Decodificación híbrida:** probar `ctc_weight` mayor que 0 y comparar el WER con
+  el de la atención sola.
+- **Modelo:** usar GPU o el modelo medium si se necesita mayor calidad, con los costos
+  de memoria de la sección 4.3.
 
 ---
 
 ## 7. Conclusiones
 
+> _Borrador para revisar con el equipo. Resume las secciones 3 a 6: la arquitectura, lo
+> que implementamos, lo que dice el artículo y lo que medimos nosotros. Si cambia algún
+> resultado de la sección 6.10, hay que actualizar este texto._
+
+### 7.1 Sobre la arquitectura y el modelo
+
+- OWSM v3.1 conserva el diseño de Whisper (un Transformer encoder–decoder con tareas
+  indicadas por tokens especiales) y cambia solo el encoder, que pasa a ser un
+  E-Branchformer (sección 3.5). Cada bloque combina atención global con una rama local
+  (cgMLP). Los autores muestran que converge más rápido que el Transformer y el
+  Conformer (sección 6.3).
+- Es un modelo **abierto y liviano**: la versión base tiene 101 millones de parámetros,
+  se entrenó con datos públicos y corre en CPU. Es el más rápido de su tabla (3.67
+  veces), gracias al submuestreo de ×4 (40 ms por frame) y a un decoder pequeño
+  (sección 6.4).
+- En inglés, v3.1 supera en promedio a Whisper en los tres tamaños que se comparan
+  (12.1 frente a 12.8 en base) con unas 6 veces menos horas de inglés. El encoder
+  nuevo también mejora 3 de 4 tareas de comprensión del habla (sección 6.9).
+
+### 7.2 Los límites que muestra el artículo
+
+- **Los datos pesan más que la arquitectura.** En español, el base tiene 18.5 % de WER
+  frente a 14.5 % de Whisper base, que se entrenó con 11.1 mil horas contra 2 mil
+  (sección 6.5). En portugués y polaco, con 0.3 mil horas, el WER pasa de 44 %.
+- **Traducción débil:** BLEU de 10.0 de español a inglés, y sin métrica publicada hacia
+  español (sección 6.6).
+- **Identificación de idioma poco fiable (41.9 %):** por eso nuestra aplicación pide el
+  idioma al usuario (sección 6.8).
+- **Audio largo:** el WER sube de 7.8 % a 9.6 % y queda lejos de Whisper base (5.3 %).
+  Por eso limitamos la aplicación a 30 s (sección 6.7).
+- **Sesgo contextual:** solo funciona desde el tamaño small; el base empeora con la lista
+  de palabras (sección 6.9).
+- **Escalar tiene rendimientos decrecientes:** de base a small el WER baja 3.6 puntos;
+  de small a medium, solo 0.8 (sección 6.4).
+
+### 7.3 Lo que implementamos
+
+Sin entrenar ni ajustar nada, cargamos los pesos publicados con ESPnet (sección 4.3) y
+construimos una aplicación en Streamlit que recibe un audio, lo transcribe o traduce con
+*beam search* de 5 hipótesis y `ctc_weight = 0` (sección 4.4), y **muestra la
+cross-attention** del decoder (6 capas × 6 cabezas), extraída con una segunda pasada
+(sección 5.7). La aplicación funciona de extremo a extremo en CPU.
+
+### 7.4 Lo que verificamos con pruebas propias
+
+Probamos 44 audios con una sola voz (sección 6.10; la comparación directa con el
+artículo, tarea por tarea, está en la sección 6.10.10):
+
+- **Precisión en español:** WER de **20.7 %** en 36 frases (392 palabras; intervalo de
+  confianza de 15.7 a 25.8 %). El 18.5 % del artículo cae dentro del intervalo, así que
+  nuestros resultados son compatibles con él.
+- **Ruido:** el WER sube de 20.7 % a 55.4 % con SNR de 5 dB.
+- **Silencio:** el modelo inventa texto repetido, con confianza baja (0.31), que sirve
+  como alerta.
+- **Traducción:** en nuestra única frase de prueba la salida no se entiende. No es una
+  medida de calidad (no calculamos BLEU), pero va en la misma dirección que el BLEU de
+  10.0 del artículo.
+- **Audio de más de 30 s:** se recorta; solo se procesó el tramo inicial.
+- **Cross-attention:** las capas 4 a 6 alinean cada token con el tramo de audio donde se
+  pronunció (14 de 18 cabezas con diagonalidad mayor que 0.9). Esto permite explicar qué
+  escuchó el modelo al escribir cada palabra y ver dónde se equivoca (sección 6.12).
+- **Tiempo:** crece con los tokens generados (≈ 0.18 s por token en CPU, más ≈ 2.2 s
+  fijos).
+
+### 7.5 Lo que no podemos concluir
+
+- **Libro contra frases cotidianas:** el WER fue menor en las cotidianas (15.4 % contra
+  23.4 %), pero con nuestros datos la diferencia no es concluyente.
+- **Beam search 5 contra *greedy*:** sin diferencia clara de WER (20.7 % contra 21.7 %),
+  aunque beam 5 tarda unas 2.6 veces más.
+- **Inglés y traducción:** 4 frases y 1 frase, muy pocas para dar cifras.
+- **Generalización:** una sola voz y un solo micrófono; no sabemos cómo cambiaría con
+  otras voces, acentos o ruido real.
+
+### 7.6 Cierre
+
+OWSM v3.1 base es una opción real para transcribir español claro sin GPU y permite
+inspeccionar por dentro cómo decide cada palabra. Sus puntos débiles (ruido,
+traducción, audio largo, silencio y poco español de entrenamiento) coinciden entre lo que
+reporta el artículo y lo que medimos. Las mejoras propuestas están en la sección 6.14.
 
 ---
 
